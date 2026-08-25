@@ -1,860 +1,1174 @@
-import pygame
-import math
-import random
+import streamlit as st
+import streamlit.components.v1 as components
 
-pygame.init()
 
-# ============================================================
-# SAVE THE PENGUIN
-# ============================================================
-
-WIDTH = 1000
-HEIGHT = 750
-FPS = 60
-
-screen = pygame.display.set_mode(
-    (WIDTH, HEIGHT)
+st.set_page_config(
+    page_title="Save the Penguin",
+    page_icon="🐧",
+    layout="centered",
 )
 
-pygame.display.set_caption(
-    "Save the Penguin"
-)
 
-clock = pygame.time.Clock()
+GAME_HTML = r"""
+<!DOCTYPE html>
+<html>
+<head>
 
+<meta charset="UTF-8">
 
-# ============================================================
-# COLORS
-# ============================================================
+<style>
 
-WATER = (35, 135, 210)
-WATER_LIGHT = (65, 165, 225)
+html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+}
 
-ICE = (175, 230, 250)
-ICE_EDGE = (70, 155, 195)
+#game-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
 
-BLACK = (25, 30, 35)
-WHITE = (245, 250, 255)
+#game {
+    position: relative;
+    width: 1000px;
+    max-width: 100%;
+    aspect-ratio: 1000 / 750;
+    overflow: hidden;
+    background: #2387d2;
+    border-radius: 12px;
+    user-select: none;
+    cursor: pointer;
+}
 
-PENGUIN_BLACK = (25, 30, 35)
-PENGUIN_WHITE = (240, 245, 245)
+/* =========================================================
+   WATER
+   ========================================================= */
 
-ORANGE = (255, 165, 45)
-
-RED = (225, 60, 60)
-YELLOW = (245, 205, 60)
-GREEN = (60, 210, 100)
-
-
-# ============================================================
-# PHYSICS
-# ============================================================
-
-GRAVITY = 900.0
-
-WATER_LEVEL = 0.0
-
-ICE_THICKNESS = 20.0
-ICE_SIZE = 55.0
-
-PENGUIN_RADIUS = 22.0
-
-PLATFORM_HEIGHT = 180.0
-
-SUPPORT_SNAP_SPEED = 15.0
-
-FALL_LIMIT = -250.0
-
-
-# ============================================================
-# CAMERA
-# ============================================================
-
-CENTER_X = WIDTH // 2
-CENTER_Y = HEIGHT // 2
-
-CAMERA_SCALE = 1.0
+.water-wave {
+    position: absolute;
+    width: 34px;
+    height: 10px;
+    border-top: 2px solid rgba(100, 190, 235, 0.75);
+    border-radius: 50%;
+    pointer-events: none;
+}
 
 
-def world_to_screen(x, y):
+/* =========================================================
+   HUD
+   ========================================================= */
 
-    return (
-        int(CENTER_X + x * CAMERA_SCALE),
-        int(CENTER_Y + y * CAMERA_SCALE)
-    )
+#hud {
+    position: absolute;
+    left: 20px;
+    top: 18px;
+    z-index: 1000;
+    color: white;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.35);
+    pointer-events: none;
+}
+
+#score {
+    font-size: 27px;
+    font-weight: bold;
+}
+
+#instructions {
+    margin-top: 5px;
+    font-size: 17px;
+}
+
+#controls {
+    margin-top: 3px;
+    font-size: 15px;
+}
+
+#physics {
+    position: absolute;
+    bottom: 13px;
+    left: 20px;
+    color: white;
+    font-size: 15px;
+    z-index: 1000;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.35);
+}
 
 
-def screen_to_world(x, y):
+/* =========================================================
+   GAME OBJECTS
+   ========================================================= */
 
-    return (
-        (x - CENTER_X) / CAMERA_SCALE,
-        (y - CENTER_Y) / CAMERA_SCALE
-    )
+#world {
+    position: absolute;
+    inset: 0;
+    transform-origin: center center;
+}
+
+.ice {
+    position: absolute;
+    width: 55px;
+    height: 55px;
+    transform-origin: center center;
+    background: rgb(175, 230, 250);
+    border: 3px solid rgb(70, 155, 195);
+    border-radius: 8px;
+    box-sizing: border-box;
+    z-index: 20;
+    transition: box-shadow 0.08s;
+}
+
+.ice:hover {
+    box-shadow:
+        0 0 0 3px rgba(245,205,60,0.85);
+}
+
+.ice.pillar {
+    cursor: not-allowed;
+}
+
+.ice.falling {
+    pointer-events: none;
+}
+
+.connection {
+    position: absolute;
+    height: 3px;
+    background: rgb(70,155,195);
+    transform-origin: left center;
+    z-index: 5;
+    pointer-events: none;
+}
 
 
-# ============================================================
-# ICE BLOCK
-# ============================================================
+/* =========================================================
+   PILLAR INDICATORS
+   ========================================================= */
 
-class IceBlock:
+.pillar-indicator {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgb(25,100,150);
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    pointer-events: none;
+}
 
-    def __init__(self, x, y):
 
-        self.x = float(x)
-        self.y = float(y)
+/* =========================================================
+   PENGUIN
+   ========================================================= */
 
-        self.size = ICE_SIZE
+#penguin {
+    position: absolute;
+    width: 44px;
+    height: 52px;
+    transform: translate(-50%, -50%);
+    z-index: 500;
+    pointer-events: none;
+}
 
-        # Height above water
-        self.z = PLATFORM_HEIGHT
+.penguin-body {
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    left: 0;
+    top: 0;
+    background: rgb(25,30,35);
+    border-radius: 50%;
+}
 
-        # Vertical velocity
-        self.vz = 0.0
+.penguin-belly {
+    position: absolute;
+    width: 26px;
+    height: 27px;
+    left: 9px;
+    top: 15px;
+    background: rgb(240,245,245);
+    border-radius: 50%;
+}
 
-        # Rotation
-        self.angle = 0.0
-        self.angular_velocity = 0.0
+.eye {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    top: 10px;
+    background: white;
+    border-radius: 50%;
+}
 
-        self.mass = 1.0
+.eye.left {
+    left: 8px;
+}
 
-        self.alive = True
+.eye.right {
+    right: 8px;
+}
 
-        # Whether connected to a support pillar
-        self.supported = False
+.pupil {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: rgb(25,30,35);
+    border-radius: 50%;
+    top: 13px;
+}
 
-        self.connections = []
+.pupil.left {
+    left: 11px;
+}
 
-        self.highlight = False
+.pupil.right {
+    right: 11px;
+}
 
-        # ====================================================
-        # COLLATERAL DAMAGE
-        #
-        # 0 = no hits
-        # 1 = hit once
-        # 2 = hit twice -> FALL
-        #
-        # This has NO visual representation.
-        # ====================================================
+.beak {
+    position: absolute;
+    left: 16px;
+    top: 20px;
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 9px solid rgb(255,165,45);
+}
 
-        self.damage = 0
+.foot {
+    position: absolute;
+    width: 22px;
+    height: 7px;
+    top: 39px;
+    background: rgb(255,165,45);
+    border-radius: 50%;
+}
 
-    # ========================================================
-    # UPDATE
-    # ========================================================
+.foot.left {
+    left: -2px;
+}
 
-    def update(self, dt):
+.foot.right {
+    right: -2px;
+}
 
-        if not self.alive:
-            return
 
-        # ====================================================
-        # SUPPORTED ICE
-        # ====================================================
+/* =========================================================
+   GAME OVER
+   ========================================================= */
 
-        if self.supported:
+#game-over {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.52);
+    z-index: 2000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    color: white;
+}
 
-            self.vz = 0.0
+#game-over-message {
+    font-size: 38px;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
 
-            difference = (
-                PLATFORM_HEIGHT -
-                self.z
-            )
+#game-over-message.win {
+    color: rgb(60,210,100);
+}
 
-            self.z += (
+#game-over-message.lose {
+    color: rgb(225,60,60);
+}
+
+#restart-message {
+    margin-top: 15px;
+    font-size: 18px;
+}
+
+
+/* =========================================================
+   RESTART BUTTON
+   ========================================================= */
+
+#restart-button {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    z-index: 1200;
+    border: none;
+    border-radius: 7px;
+    padding: 9px 16px;
+    background: rgba(255,255,255,0.92);
+    color: #164c6a;
+    font-weight: bold;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+#restart-button:hover {
+    background: white;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 700px) {
+
+    #score {
+        font-size: 20px;
+    }
+
+    #instructions,
+    #controls,
+    #physics {
+        font-size: 12px;
+    }
+
+    #restart-button {
+        font-size: 12px;
+        padding: 7px 10px;
+    }
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div id="game-container">
+
+<div id="game">
+
+    <div id="world"></div>
+
+    <div id="hud">
+
+        <div id="score">
+            Ice Broken: 0
+        </div>
+
+        <div id="instructions">
+            Click ice blocks to break them
+        </div>
+
+        <div id="controls">
+            R = Restart
+        </div>
+
+    </div>
+
+    <div id="physics">
+        1 hit = normal &nbsp;&nbsp; 2 hits = falls
+    </div>
+
+    <button id="restart-button">
+        Restart
+    </button>
+
+    <div id="game-over">
+
+        <div id="game-over-message"></div>
+
+        <div id="restart-message">
+            Press R or click Restart
+        </div>
+
+    </div>
+
+</div>
+
+</div>
+
+
+<script>
+
+/* =========================================================
+   CONSTANTS
+   ========================================================= */
+
+const WIDTH = 1000;
+const HEIGHT = 750;
+
+const CENTER_X = WIDTH / 2;
+const CENTER_Y = HEIGHT / 2;
+
+const GRAVITY = 900;
+
+const WATER_LEVEL = 0;
+
+const ICE_THICKNESS = 20;
+const ICE_SIZE = 55;
+
+const PENGUIN_RADIUS = 22;
+
+const PLATFORM_HEIGHT = 180;
+
+const FALL_LIMIT = -250;
+
+const FPS = 60;
+
+
+/* =========================================================
+   GAME ELEMENTS
+   ========================================================= */
+
+const game = document.getElementById("game");
+const world = document.getElementById("world");
+
+const scoreElement =
+    document.getElementById("score");
+
+const gameOverElement =
+    document.getElementById("game-over");
+
+const gameOverMessage =
+    document.getElementById("game-over-message");
+
+const restartButton =
+    document.getElementById("restart-button");
+
+
+/* =========================================================
+   GAME STATE
+   ========================================================= */
+
+let blocks = [];
+let connections = [];
+let pillars = [];
+let penguin = null;
+
+let iceBroken = 0;
+
+let gameOver = false;
+let won = false;
+
+let lastTime = performance.now();
+
+
+/* =========================================================
+   RANDOM
+   ========================================================= */
+
+function randomUniform(min, max) {
+
+    return min +
+        Math.random() *
+        (max - min);
+
+}
+
+
+/* =========================================================
+   WORLD → SCREEN
+   ========================================================= */
+
+function worldToScreen(x, y) {
+
+    return {
+
+        x: CENTER_X + x,
+
+        y: CENTER_Y + y
+
+    };
+
+}
+
+
+/* =========================================================
+   ICE BLOCK
+   ========================================================= */
+
+class IceBlock {
+
+    constructor(x, y, row, col) {
+
+        this.x = x;
+        this.y = y;
+
+        this.row = row;
+        this.col = col;
+
+        this.size = ICE_SIZE;
+
+        this.z = PLATFORM_HEIGHT;
+
+        this.vz = 0;
+
+        this.angle = 0;
+
+        this.angularVelocity = 0;
+
+        this.mass = 1;
+
+        this.alive = true;
+
+        this.supported = false;
+
+        this.connections = [];
+
+        this.damage = 0;
+
+        this.element =
+            document.createElement("div");
+
+        this.element.className = "ice";
+
+        this.element.dataset.row = row;
+        this.element.dataset.col = col;
+
+        world.appendChild(
+            this.element
+        );
+
+        this.element.addEventListener(
+            "click",
+            (event) => {
+
+                event.stopPropagation();
+
+                if (!gameOver) {
+
+                    breakIce(this);
+
+                }
+
+            }
+        );
+
+    }
+
+
+    update(dt) {
+
+        if (!this.alive) {
+            return;
+        }
+
+
+        /* =====================================================
+           SUPPORTED
+           ===================================================== */
+
+        if (this.supported) {
+
+            this.vz = 0;
+
+            const difference =
+                PLATFORM_HEIGHT - this.z;
+
+            this.z +=
                 difference *
-                min(
-                    1.0,
-                    SUPPORT_SNAP_SPEED * dt
+                Math.min(
+                    1,
+                    15 * dt
+                );
+
+            this.angularVelocity *= 0.90;
+
+        }
+
+
+        /* =====================================================
+           FALLING
+           ===================================================== */
+
+        else {
+
+            this.vz -=
+                GRAVITY * dt;
+
+            this.z +=
+                this.vz * dt;
+
+            this.angularVelocity *= 0.995;
+
+            this.angle +=
+                this.angularVelocity * dt;
+
+        }
+
+
+        if (this.supported) {
+
+            this.angle +=
+                this.angularVelocity * dt;
+
+        }
+
+
+        if (this.z < FALL_LIMIT) {
+
+            this.alive = false;
+
+            this.element.remove();
+
+        }
+
+
+        this.render();
+
+    }
+
+
+    render() {
+
+        if (!this.alive) {
+            return;
+        }
+
+        const position =
+            worldToScreen(
+                this.x,
+                this.y
+            );
+
+        const scale =
+            Math.max(
+                0.75,
+                Math.min(
+                    1.25,
+                    1 + this.z * 0.001
                 )
-            )
+            );
 
-            # Stop spinning when supported
-            self.angular_velocity *= 0.90
-
-        # ====================================================
-        # FALLING ICE
-        # ====================================================
-
-        else:
-
-            # Gravity
-            self.vz -= (
-                GRAVITY *
-                dt
-            )
-
-            # Fall downward
-            self.z += (
-                self.vz *
-                dt
-            )
-
-            # Air resistance
-            self.angular_velocity *= 0.995
-
-            # Continue rotation
-            self.angle += (
-                self.angular_velocity *
-                dt
-            )
-
-        # ====================================================
-        # ROTATION
-        # ====================================================
-
-        if self.supported:
-
-            self.angle += (
-                self.angular_velocity *
-                dt
-            )
-
-        # ====================================================
-        # REMOVE AFTER FALLING FAR ENOUGH
-        # ====================================================
-
-        if self.z < FALL_LIMIT:
-
-            self.alive = False
-
-    # ========================================================
-    # DRAW
-    # ========================================================
-
-    def draw(self):
-
-        if not self.alive:
-            return
-
-        sx, sy = world_to_screen(
-            self.x,
-            self.y
-        )
-
-        # ----------------------------------------------------
-        # Height-based visual scaling
-        # ----------------------------------------------------
-
-        scale = (
-            1.0 +
-            self.z * 0.001
-        )
-
-        scale = max(
-            0.75,
-            min(
-                1.25,
-                scale
-            )
-        )
-
-        size = int(
-            ICE_SIZE *
-            scale
-        )
-
-        surface = pygame.Surface(
-            (
-                size + 12,
-                size + 12
-            ),
-            pygame.SRCALPHA
-        )
-
-        # ====================================================
-        # SHADOW
-        # ====================================================
-
-        shadow_offset = int(
-            max(
-                0,
-                -self.z * 0.08
-            )
-        )
-
-        pygame.draw.rect(
-            surface,
-            (
-                15,
-                70,
-                110,
-                80
-            ),
-            (
-                6 + shadow_offset,
-                6 + shadow_offset,
-                size,
-                size
-            ),
-            border_radius=8
-        )
-
-        # ====================================================
-        # ICE
-        # ====================================================
-
-        pygame.draw.rect(
-            surface,
-            ICE,
-            (
-                6,
-                6,
-                size,
-                size
-            ),
-            border_radius=8
-        )
-
-        pygame.draw.rect(
-            surface,
-            ICE_EDGE,
-            (
-                6,
-                6,
-                size,
-                size
-            ),
-            3,
-            border_radius=8
-        )
-
-        # ====================================================
-        # NO CRACK VISUAL
-        #
-        # NO RED X
-        #
-        # Damage is invisible.
-        # ====================================================
-
-        # ====================================================
-        # HIGHLIGHT
-        # ====================================================
-
-        if self.highlight:
-
-            pygame.draw.rect(
-                surface,
-                YELLOW,
-                (
-                    4,
-                    4,
-                    size + 4,
-                    size + 4
-                ),
-                3,
-                border_radius=10
-            )
-
-        # ====================================================
-        # ROTATION
-        # ====================================================
-
-        rotated = pygame.transform.rotate(
-            surface,
-            -math.degrees(
-                self.angle
-            )
-        )
-
-        screen.blit(
-            rotated,
-            (
-                sx -
-                rotated.get_width() // 2,
-
-                sy -
-                rotated.get_height() // 2
-            )
-        )
+        const size =
+            ICE_SIZE * scale;
 
 
-# ============================================================
-# CONNECTION
-# ============================================================
+        this.element.style.left =
+            `${position.x - size / 2}px`;
 
-class Connection:
+        this.element.style.top =
+            `${position.y - size / 2}px`;
 
-    def __init__(self, a, b):
+        this.element.style.width =
+            `${size}px`;
 
-        self.a = a
-        self.b = b
+        this.element.style.height =
+            `${size}px`;
 
-        self.alive = True
+        this.element.style.transform =
+            `rotate(${-this.angle * 180 / Math.PI}deg)`;
 
-    def draw(self):
 
-        if not self.alive:
-            return
+        if (this.supported) {
+
+            this.element.style.opacity = "1";
+
+        }
+        else {
+
+            this.element.style.opacity = "1";
+
+        }
+
+    }
+
+
+    destroyElement() {
+
+        if (this.element) {
+
+            this.element.remove();
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   CONNECTION
+   ========================================================= */
+
+class Connection {
+
+    constructor(a, b) {
+
+        this.a = a;
+        this.b = b;
+
+        this.alive = true;
+
+        this.element =
+            document.createElement("div");
+
+        this.element.className =
+            "connection";
+
+        world.appendChild(
+            this.element
+        );
+
+    }
+
+
+    render() {
 
         if (
-            not self.a.alive
-            or
-            not self.b.alive
-        ):
-            return
+            !this.alive ||
+            !this.a.alive ||
+            !this.b.alive
+        ) {
 
-        ax, ay = world_to_screen(
-            self.a.x,
-            self.a.y
-        )
+            this.element.style.display =
+                "none";
 
-        bx, by = world_to_screen(
-            self.b.x,
-            self.b.y
-        )
+            return;
 
-        pygame.draw.line(
-            screen,
-            ICE_EDGE,
-            (ax, ay),
-            (bx, by),
-            3
-        )
+        }
 
+        const a =
+            worldToScreen(
+                this.a.x,
+                this.a.y
+            );
 
-# ============================================================
-# SUPPORT PILLAR
-# ============================================================
+        const b =
+            worldToScreen(
+                this.b.x,
+                this.b.y
+            );
 
-class SupportPillar:
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
 
-    def __init__(self, block):
-
-        self.block = block
-
-        self.x = block.x
-        self.y = block.y
-
-        self.height = PLATFORM_HEIGHT
-
-    def supports(self):
-
-        return self.block.alive
-
-
-# ============================================================
-# PENGUIN
-# ============================================================
-
-class Penguin:
-
-    def __init__(self, x, y):
-
-        self.x = float(x)
-        self.y = float(y)
-
-        self.z = (
-            PLATFORM_HEIGHT +
-            ICE_THICKNESS +
-            PENGUIN_RADIUS
-        )
-
-        self.vz = 0.0
-
-        self.mass = 1.5
-
-        self.alive = True
-
-        self.support = None
-
-    # ========================================================
-    # FIND SUPPORT
-    # ========================================================
-
-    def find_support(self, blocks):
-
-        best = None
-
-        best_distance = float(
-            "inf"
-        )
-
-        for block in blocks:
-
-            if not block.alive:
-                continue
-
-            dx = (
-                self.x -
-                block.x
-            )
-
-            dy = (
-                self.y -
-                block.y
-            )
-
-            distance = math.sqrt(
+        const length =
+            Math.sqrt(
                 dx * dx +
                 dy * dy
-            )
+            );
+
+        const angle =
+            Math.atan2(
+                dy,
+                dx
+            ) *
+            180 /
+            Math.PI;
+
+        this.element.style.display =
+            "block";
+
+        this.element.style.left =
+            `${a.x}px`;
+
+        this.element.style.top =
+            `${a.y - 1.5}px`;
+
+        this.element.style.width =
+            `${length}px`;
+
+        this.element.style.transform =
+            `rotate(${angle}deg)`;
+
+    }
+
+
+    destroy() {
+
+        this.alive = false;
+
+        this.element.remove();
+
+    }
+
+}
+
+
+/* =========================================================
+   SUPPORT PILLAR
+   ========================================================= */
+
+class SupportPillar {
+
+    constructor(block) {
+
+        this.block = block;
+
+        this.x = block.x;
+        this.y = block.y;
+
+        this.height =
+            PLATFORM_HEIGHT;
+
+        this.element =
+            document.createElement("div");
+
+        this.element.className =
+            "pillar-indicator";
+
+        world.appendChild(
+            this.element
+        );
+
+        this.render();
+
+    }
+
+
+    supports() {
+
+        return this.block.alive;
+
+    }
+
+
+    render() {
+
+        const position =
+            worldToScreen(
+                this.x,
+                this.y
+            );
+
+        this.element.style.left =
+            `${position.x}px`;
+
+        this.element.style.top =
+            `${position.y}px`;
+
+    }
+
+}
+
+
+/* =========================================================
+   PENGUIN
+   ========================================================= */
+
+class Penguin {
+
+    constructor(x, y) {
+
+        this.x = x;
+        this.y = y;
+
+        this.z =
+            PLATFORM_HEIGHT +
+            ICE_THICKNESS +
+            PENGUIN_RADIUS;
+
+        this.vz = 0;
+
+        this.mass = 1.5;
+
+        this.alive = true;
+
+        this.support = null;
+
+
+        this.element =
+            document.createElement("div");
+
+        this.element.id =
+            "penguin";
+
+        this.element.innerHTML = `
+
+            <div class="penguin-body"></div>
+
+            <div class="penguin-belly"></div>
+
+            <div class="eye left"></div>
+            <div class="eye right"></div>
+
+            <div class="pupil left"></div>
+            <div class="pupil right"></div>
+
+            <div class="beak"></div>
+
+            <div class="foot left"></div>
+            <div class="foot right"></div>
+
+        `;
+
+        world.appendChild(
+            this.element
+        );
+
+    }
+
+
+    findSupport() {
+
+        let best = null;
+
+        let bestDistance =
+            Infinity;
+
+
+        for (
+            const block of blocks
+        ) {
+
+            if (!block.alive) {
+                continue;
+            }
+
+            const dx =
+                this.x - block.x;
+
+            const dy =
+                this.y - block.y;
+
+            const distance =
+                Math.sqrt(
+                    dx * dx +
+                    dy * dy
+                );
 
             if (
                 distance <
                 block.size * 0.60
-            ):
+            ) {
 
                 if (
                     distance <
-                    best_distance
-                ):
+                    bestDistance
+                ) {
 
-                    best = block
+                    best = block;
 
-                    best_distance = (
-                        distance
-                    )
+                    bestDistance =
+                        distance;
 
-        return best
+                }
 
-    # ========================================================
-    # UPDATE
-    # ========================================================
+            }
 
-    def update(self, blocks, dt):
+        }
 
-        if not self.alive:
-            return
+        return best;
 
-        # Gravity
+    }
 
-        self.vz -= (
-            GRAVITY *
-            dt
-        )
 
-        # Find ice below
+    update(dt) {
 
-        support = self.find_support(
-            blocks
-        )
+        if (!this.alive) {
+            return;
+        }
 
-        if support:
 
-            ice_top = (
+        this.vz -=
+            GRAVITY * dt;
+
+
+        const support =
+            this.findSupport();
+
+
+        if (support) {
+
+            const iceTop =
                 support.z +
-                ICE_THICKNESS / 2
-            )
+                ICE_THICKNESS / 2;
 
-            penguin_bottom = (
-                self.z -
-                PENGUIN_RADIUS
-            )
+            const penguinBottom =
+                this.z -
+                PENGUIN_RADIUS;
 
-            # Landing
 
             if (
-                penguin_bottom
-                <= ice_top
-                and
-                self.vz < 0
-            ):
+                penguinBottom <= iceTop &&
+                this.vz < 0
+            ) {
 
-                self.z = (
-                    ice_top +
-                    PENGUIN_RADIUS
+                this.z =
+                    iceTop +
+                    PENGUIN_RADIUS;
+
+                this.vz = 0;
+
+                this.support =
+                    support;
+
+            }
+
+        }
+        else {
+
+            this.support = null;
+
+        }
+
+
+        this.z +=
+            this.vz * dt;
+
+
+        if (this.z < -40) {
+
+            this.alive = false;
+
+        }
+
+
+        this.render();
+
+    }
+
+
+    render() {
+
+        if (!this.alive) {
+
+            this.element.style.display =
+                "none";
+
+            return;
+
+        }
+
+
+        this.element.style.display =
+            "block";
+
+
+        const position =
+            worldToScreen(
+                this.x,
+                this.y
+            );
+
+
+        const scale =
+            Math.max(
+                0.7,
+                Math.min(
+                    1.25,
+                    1 + this.z * 0.001
                 )
-
-                self.vz = 0
-
-                self.support = support
-
-        else:
-
-            self.support = None
-
-        # Move
-
-        self.z += (
-            self.vz *
-            dt
-        )
-
-        # Fell into water
-
-        if self.z < -40:
-
-            self.alive = False
-
-    # ========================================================
-    # DRAW
-    # ========================================================
-
-    def draw(self):
-
-        if not self.alive:
-            return
-
-        sx, sy = world_to_screen(
-            self.x,
-            self.y
-        )
-
-        scale = (
-            1.0 +
-            self.z * 0.001
-        )
-
-        scale = max(
-            0.7,
-            min(
-                1.25,
-                scale
-            )
-        )
-
-        radius = int(
-            PENGUIN_RADIUS *
-            scale
-        )
-
-        # Shadow
-
-        pygame.draw.ellipse(
-            screen,
-            (
-                15,
-                75,
-                115
-            ),
-            (
-                sx - radius,
-                sy - radius // 2,
-                radius * 2,
-                radius
-            )
-        )
-
-        # Body
-
-        pygame.draw.circle(
-            screen,
-            PENGUIN_BLACK,
-            (
-                sx,
-                sy
-            ),
-            radius
-        )
-
-        # Belly
-
-        pygame.draw.circle(
-            screen,
-            PENGUIN_WHITE,
-            (
-                sx,
-                sy + int(
-                    radius * 0.20
-                )
-            ),
-            int(
-                radius * 0.60
-            )
-        )
-
-        # Eyes
-
-        eye_offset = int(
-            radius * 0.35
-        )
-
-        eye_radius = int(
-            radius * 0.22
-        )
-
-        pygame.draw.circle(
-            screen,
-            WHITE,
-            (
-                sx - eye_offset,
-                sy - eye_offset
-            ),
-            eye_radius
-        )
-
-        pygame.draw.circle(
-            screen,
-            WHITE,
-            (
-                sx + eye_offset,
-                sy - eye_offset
-            ),
-            eye_radius
-        )
-
-        # Pupils
-
-        pupil_radius = max(
-            2,
-            int(
-                radius * 0.10
-            )
-        )
-
-        pygame.draw.circle(
-            screen,
-            BLACK,
-            (
-                sx - eye_offset,
-                sy - eye_offset
-            ),
-            pupil_radius
-        )
-
-        pygame.draw.circle(
-            screen,
-            BLACK,
-            (
-                sx + eye_offset,
-                sy - eye_offset
-            ),
-            pupil_radius
-        )
-
-        # Beak
-
-        pygame.draw.polygon(
-            screen,
-            ORANGE,
-            [
-                (
-                    sx - int(
-                        radius * 0.25
-                    ),
-                    sy
-                ),
-                (
-                    sx + int(
-                        radius * 0.25
-                    ),
-                    sy
-                ),
-                (
-                    sx,
-                    sy + int(
-                        radius * 0.35
-                    )
-                )
-            ]
-        )
-
-        # Feet
-
-        pygame.draw.ellipse(
-            screen,
-            ORANGE,
-            (
-                sx - radius,
-                sy + radius - 3,
-                radius,
-                int(
-                    radius * 0.30
-                )
-            )
-        )
-
-        pygame.draw.ellipse(
-            screen,
-            ORANGE,
-            (
-                sx,
-                sy + radius - 3,
-                radius,
-                int(
-                    radius * 0.30
-                )
-            )
-        )
+            );
 
 
-# ============================================================
-# CREATE LEVEL
-# ============================================================
+        this.element.style.left =
+            `${position.x}px`;
 
-def create_level():
+        this.element.style.top =
+            `${position.y}px`;
 
-    blocks = []
+        this.element.style.transform =
+            `translate(-50%, -50%) scale(${scale})`;
 
-    connections = []
+    }
 
-    pillars = []
+}
 
-    rows = 7
-    cols = 10
 
-    spacing = 60
+/* =========================================================
+   CREATE LEVEL
+   ========================================================= */
 
-    start_x = (
+function createLevel() {
+
+    blocks = [];
+    connections = [];
+    pillars = [];
+
+
+    const rows = 7;
+    const cols = 10;
+
+    const spacing = 60;
+
+
+    const startX =
         -(
-            cols - 1
-        ) *
-        spacing /
-        2
-    )
+            (cols - 1) *
+            spacing
+        ) / 2;
 
-    start_y = (
+
+    const startY =
         -(
-            rows - 1
-        ) *
-        spacing /
-        2
-    )
+            (rows - 1) *
+            spacing
+        ) / 2;
 
-    grid = []
 
-    # ========================================================
-    # CREATE ICE BLOCKS
-    # ========================================================
+    const grid = [];
 
-    for row in range(rows):
 
-        row_blocks = []
+    /* =====================================================
+       CREATE BLOCKS
+       ===================================================== */
 
-        for col in range(cols):
+    for (
+        let row = 0;
+        row < rows;
+        row++
+    ) {
 
-            x = (
-                start_x +
-                col * spacing
-            )
+        const rowBlocks = [];
 
-            y = (
-                start_y +
-                row * spacing
-            )
 
-            x += random.uniform(
-                -2,
-                2
-            )
+        for (
+            let col = 0;
+            col < cols;
+            col++
+        ) {
 
-            y += random.uniform(
-                -2,
-                2
-            )
+            let x =
+                startX +
+                col * spacing;
 
-            block = IceBlock(
-                x,
-                y
-            )
+            let y =
+                startY +
+                row * spacing;
 
-            row_blocks.append(
-                block
-            )
 
-            blocks.append(
-                block
-            )
+            x +=
+                randomUniform(
+                    -2,
+                    2
+                );
 
-        grid.append(
-            row_blocks
-        )
+            y +=
+                randomUniform(
+                    -2,
+                    2
+                );
 
-    # ========================================================
-    # FOUR SUPPORT PILLARS
-    # ========================================================
 
-    corner_blocks = [
+            const block =
+                new IceBlock(
+                    x,
+                    y,
+                    row,
+                    col
+                );
+
+
+            rowBlocks.push(block);
+
+            blocks.push(block);
+
+        }
+
+
+        grid.push(rowBlocks);
+
+    }
+
+
+    /* =====================================================
+       FOUR SUPPORT PILLARS
+       ===================================================== */
+
+    const cornerBlocks = [
 
         grid[0][0],
 
@@ -864,959 +1178,917 @@ def create_level():
 
         grid[rows - 1][cols - 1]
 
-    ]
-
-    for block in corner_blocks:
-
-        pillars.append(
-            SupportPillar(
-                block
-            )
-        )
-
-    # ========================================================
-    # CONNECT NEIGHBORS
-    # ========================================================
-
-    for row in range(rows):
-
-        for col in range(cols):
-
-            current = grid[row][col]
-
-            # Right
-
-            if col < cols - 1:
-
-                connection = Connection(
-                    current,
-                    grid[row][col + 1]
-                )
-
-                connections.append(
-                    connection
-                )
-
-                current.connections.append(
-                    connection
-                )
-
-                grid[row][col + 1].connections.append(
-                    connection
-                )
-
-            # Down
-
-            if row < rows - 1:
-
-                connection = Connection(
-                    current,
-                    grid[row + 1][col]
-                )
-
-                connections.append(
-                    connection
-                )
-
-                current.connections.append(
-                    connection
-                )
-
-                grid[row + 1][col].connections.append(
-                    connection
-                )
-
-    # ========================================================
-    # PENGUIN
-    # ========================================================
-
-    center = grid[
-        random.randint(
-            1,
-            rows - 2
-        )
-    ][
-        random.randint(
-            1,
-            cols - 2
-        )
-    ]
-
-    penguin = Penguin(
-        center.x,
-        center.y
-    )
-
-    return (
-        blocks,
-        connections,
-        pillars,
-        penguin
-    )
+    ];
 
 
-# ============================================================
-# STRUCTURAL SUPPORT
-# ============================================================
+    for (
+        const block of cornerBlocks
+    ) {
 
-def update_structural_support(
-    blocks,
-    connections,
-    pillars
-):
+        pillars.push(
+            new SupportPillar(block)
+        );
 
-    # --------------------------------------------------------
-    # Initially mark everything unsupported
-    # --------------------------------------------------------
+        block.element.classList.add(
+            "pillar"
+        );
 
-    for block in blocks:
+    }
 
-        block.supported = False
 
-    # --------------------------------------------------------
-    # Start at the four pillars
-    # --------------------------------------------------------
+    /* =====================================================
+       CONNECTIONS
+       ===================================================== */
 
-    queue = []
+    for (
+        let row = 0;
+        row < rows;
+        row++
+    ) {
 
-    for pillar in pillars:
+        for (
+            let col = 0;
+            col < cols;
+            col++
+        ) {
 
-        block = pillar.block
+            const current =
+                grid[row][col];
 
-        if block.alive:
 
-            block.supported = True
-
-            queue.append(
-                block
-            )
-
-    # --------------------------------------------------------
-    # Spread through connections
-    # --------------------------------------------------------
-
-    while queue:
-
-        current = queue.pop(0)
-
-        for connection in current.connections:
-
-            if not connection.alive:
-                continue
+            /* RIGHT */
 
             if (
-                not connection.a.alive
-                or
-                not connection.b.alive
-            ):
-                continue
+                col <
+                cols - 1
+            ) {
 
-            if connection.a == current:
+                const connection =
+                    new Connection(
+                        current,
+                        grid[row][col + 1]
+                    );
 
-                neighbor = connection.b
+                connections.push(
+                    connection
+                );
 
-            else:
+                current.connections.push(
+                    connection
+                );
 
-                neighbor = connection.a
+                grid[row][col + 1]
+                    .connections
+                    .push(connection);
 
-            if not neighbor.supported:
+            }
 
-                neighbor.supported = True
 
-                queue.append(
+            /* DOWN */
+
+            if (
+                row <
+                rows - 1
+            ) {
+
+                const connection =
+                    new Connection(
+                        current,
+                        grid[row + 1][col]
+                    );
+
+                connections.push(
+                    connection
+                );
+
+                current.connections.push(
+                    connection
+                );
+
+                grid[row + 1][col]
+                    .connections
+                    .push(connection);
+
+            }
+
+        }
+
+    }
+
+
+    /* =====================================================
+       PENGUIN
+       ===================================================== */
+
+    const centerRow =
+        Math.floor(
+            Math.random() *
+            (rows - 2)
+        ) + 1;
+
+
+    const centerCol =
+        Math.floor(
+            Math.random() *
+            (cols - 2)
+        ) + 1;
+
+
+    const center =
+        grid[
+            centerRow
+        ][
+            centerCol
+        ];
+
+
+    penguin =
+        new Penguin(
+            center.x,
+            center.y
+        );
+
+}
+
+
+/* =========================================================
+   STRUCTURAL SUPPORT
+   ========================================================= */
+
+function updateStructuralSupport() {
+
+
+    for (
+        const block of blocks
+    ) {
+
+        block.supported = false;
+
+    }
+
+
+    const queue = [];
+
+
+    for (
+        const pillar of pillars
+    ) {
+
+        const block =
+            pillar.block;
+
+
+        if (block.alive) {
+
+            block.supported = true;
+
+            queue.push(block);
+
+        }
+
+    }
+
+
+    while (
+        queue.length > 0
+    ) {
+
+        const current =
+            queue.shift();
+
+
+        for (
+            const connection
+            of current.connections
+        ) {
+
+            if (!connection.alive) {
+                continue;
+            }
+
+            if (
+                !connection.a.alive ||
+                !connection.b.alive
+            ) {
+                continue;
+            }
+
+
+            let neighbor;
+
+
+            if (
+                connection.a === current
+            ) {
+
+                neighbor =
+                    connection.b;
+
+            }
+            else {
+
+                neighbor =
+                    connection.a;
+
+            }
+
+
+            if (
+                !neighbor.supported
+            ) {
+
+                neighbor.supported =
+                    true;
+
+                queue.push(
                     neighbor
-                )
+                );
+
+            }
+
+        }
+
+    }
+
+}
 
 
-# ============================================================
-# FIND ADJACENT BLOCKS
-#
-# ONLY DIRECTLY ADJACENT:
-#
-#             [X]
-#
-#        [X]  [B]  [X]
-#
-#             [X]
-#
-# NO DIAGONALS.
-# ============================================================
+/* =========================================================
+   PILLAR CHECK
+   ========================================================= */
 
-def get_adjacent_blocks(block):
+function isPillarBlock(block) {
 
-    adjacent_blocks = []
-
-    ADJACENT_DISTANCE = 70
-
-    ALIGNMENT_TOLERANCE = 15
-
-    for other in blocks:
-
-        if other == block:
-            continue
-
-        if not other.alive:
-            continue
-
-        if is_pillar_block(other):
-            continue
-
-        dx = abs(
-            other.x -
-            block.x
-        )
-
-        dy = abs(
-            other.y -
-            block.y
-        )
-
-        # Left / right
-
-        horizontal = (
-            dx < ADJACENT_DISTANCE
-            and
-            dy < ALIGNMENT_TOLERANCE
-        )
-
-        # Up / down
-
-        vertical = (
-            dy < ADJACENT_DISTANCE
-            and
-            dx < ALIGNMENT_TOLERANCE
-        )
+    for (
+        const pillar of pillars
+    ) {
 
         if (
-            horizontal
-            or
+            pillar.block === block
+        ) {
+
+            return true;
+
+        }
+
+    }
+
+    return false;
+
+}
+
+
+/* =========================================================
+   ADJACENT BLOCKS
+   ========================================================= */
+
+function getAdjacentBlocks(block) {
+
+    const adjacent = [];
+
+    const ADJACENT_DISTANCE = 70;
+    const ALIGNMENT_TOLERANCE = 15;
+
+
+    for (
+        const other of blocks
+    ) {
+
+        if (
+            other === block ||
+            !other.alive
+        ) {
+
+            continue;
+
+        }
+
+
+        if (
+            isPillarBlock(other)
+        ) {
+
+            continue;
+
+        }
+
+
+        const dx =
+            Math.abs(
+                other.x -
+                block.x
+            );
+
+
+        const dy =
+            Math.abs(
+                other.y -
+                block.y
+            );
+
+
+        const horizontal =
+            dx <
+                ADJACENT_DISTANCE &&
+            dy <
+                ALIGNMENT_TOLERANCE;
+
+
+        const vertical =
+            dy <
+                ADJACENT_DISTANCE &&
+            dx <
+                ALIGNMENT_TOLERANCE;
+
+
+        if (
+            horizontal ||
             vertical
-        ):
+        ) {
 
-            adjacent_blocks.append(
-                other
-            )
+            adjacent.push(other);
 
-    return adjacent_blocks
+        }
 
-
-# ============================================================
-# GAME STATE
-# ============================================================
-
-(
-    blocks,
-    connections,
-    pillars,
-    penguin
-) = create_level()
-
-ice_broken = 0
-
-game_over = False
-
-won = False
+    }
 
 
-# ============================================================
-# RESET
-# ============================================================
+    return adjacent;
 
-def reset_game():
-
-    global blocks
-    global connections
-    global pillars
-    global penguin
-    global ice_broken
-    global game_over
-    global won
-
-    (
-        blocks,
-        connections,
-        pillars,
-        penguin
-    ) = create_level()
-
-    ice_broken = 0
-
-    game_over = False
-
-    won = False
+}
 
 
-# ============================================================
-# FIND CLICKED BLOCK
-# ============================================================
+/* =========================================================
+   START FALLING
+   ========================================================= */
 
-def get_clicked_block(
-    mouse_x,
-    mouse_y
-):
+function startFalling(block) {
 
-    world_x, world_y = screen_to_world(
-        mouse_x,
-        mouse_y
-    )
+    if (!block.alive) {
+        return;
+    }
 
-    closest = None
 
-    closest_distance = float(
-        "inf"
-    )
+    block.supported = false;
 
-    for block in blocks:
 
-        if not block.alive:
-            continue
+    if (
+        block.vz >= 0
+    ) {
 
-        dx = (
-            world_x -
-            block.x
-        )
+        block.vz = -50;
 
-        dy = (
-            world_y -
-            block.y
-        )
+    }
 
-        distance = math.sqrt(
-            dx * dx +
-            dy * dy
-        )
+
+    if (
+        Math.abs(
+            block.angularVelocity
+        ) < 0.2
+    ) {
+
+        block.angularVelocity =
+            randomUniform(
+                -3,
+                3
+            );
+
+    }
+
+
+    block.element.classList.add(
+        "falling"
+    );
+
+}
+
+
+/* =========================================================
+   BREAK ICE
+   ========================================================= */
+
+function breakIce(block) {
+
+    if (
+        !block ||
+        !block.alive
+    ) {
+
+        return;
+
+    }
+
+
+    /* =====================================================
+       PILLARS CANNOT BE DIRECTLY DESTROYED
+       ===================================================== */
+
+    if (
+        isPillarBlock(block)
+    ) {
+
+        return;
+
+    }
+
+
+    /* =====================================================
+       FIND NEIGHBORS BEFORE REMOVAL
+       ===================================================== */
+
+    const adjacentBlocks =
+        getAdjacentBlocks(block);
+
+
+    /* =====================================================
+       DIRECT CLICK
+       ===================================================== */
+
+    block.alive = false;
+
+    block.supported = false;
+
+    block.destroyElement();
+
+    iceBroken++;
+
+    updateScore();
+
+
+    /* =====================================================
+       REMOVE CONNECTIONS
+       ===================================================== */
+
+    for (
+        const connection
+        of connections
+    ) {
 
         if (
-            distance <
-            block.size / 2
-        ):
+            connection.a === block ||
+            connection.b === block
+        ) {
 
-            if (
-                distance <
-                closest_distance
-            ):
+            connection.alive = false;
 
-                closest = block
+        }
 
-                closest_distance = (
-                    distance
-                )
-
-    return closest
+    }
 
 
-# ============================================================
-# CHECK PILLAR
-# ============================================================
+    /* =====================================================
+       COLLATERAL DAMAGE
+       ===================================================== */
 
-def is_pillar_block(block):
-
-    for pillar in pillars:
-
-        if block == pillar.block:
-
-            return True
-
-    return False
-
-
-# ============================================================
-# START FALLING
-#
-# This is separated into its own function so both:
-#
-#   1. structurally unsupported blocks
-#   2. blocks hit twice by collateral damage
-#
-# get exactly the same falling effect.
-# ============================================================
-
-def start_falling(block):
-
-    if not block.alive:
-        return
-
-    block.supported = False
-
-    # Start downward velocity
-
-    if block.vz >= 0:
-
-        block.vz = -50.0
-
-    # Start rotation
-
-    if abs(
-        block.angular_velocity
-    ) < 0.2:
-
-        block.angular_velocity = random.uniform(
-            -3.0,
-            3.0
-        )
-
-
-# ============================================================
-# BREAK ICE
-#
-# DIRECT CLICK:
-#     Immediately disappears.
-#
-# COLLATERAL #1:
-#     Remains normal.
-#
-# COLLATERAL #2:
-#     Falls and rotates.
-#     Does NOT disappear immediately.
-# ============================================================
-
-def break_ice(
-    mouse_x,
-    mouse_y
-):
-
-    global ice_broken
-
-    block = get_clicked_block(
-        mouse_x,
-        mouse_y
-    )
-
-    if block is None:
-        return
-
-    # --------------------------------------------------------
-    # Pillars cannot be directly destroyed
-    # --------------------------------------------------------
-
-    if is_pillar_block(block):
-        return
-
-    # --------------------------------------------------------
-    # Find neighbors BEFORE removing the clicked block
-    # --------------------------------------------------------
-
-    adjacent_blocks = get_adjacent_blocks(
-        block
-    )
-
-    # ========================================================
-    # DIRECT CLICK
-    #
-    # Immediately destroy clicked block.
-    # ========================================================
-
-    block.alive = False
-
-    block.supported = False
-
-    ice_broken += 1
-
-    # --------------------------------------------------------
-    # Remove all connections to clicked block
-    # --------------------------------------------------------
-
-    for connection in connections:
+    for (
+        const neighbor
+        of adjacentBlocks
+    ) {
 
         if (
-            connection.a == block
-            or
-            connection.b == block
-        ):
+            !neighbor.alive
+        ) {
 
-            connection.alive = False
+            continue;
 
-    # ========================================================
-    # COLLATERAL DAMAGE
-    # ========================================================
+        }
 
-    for neighbor in adjacent_blocks:
 
-        if not neighbor.alive:
-            continue
+        if (
+            isPillarBlock(neighbor)
+        ) {
 
-        if is_pillar_block(neighbor):
-            continue
+            continue;
 
-        # ----------------------------------------------------
-        # Add one collateral hit
-        # ----------------------------------------------------
+        }
 
-        neighbor.damage += 1
 
-        # ====================================================
-        # SECOND HIT
-        #
-        # DO NOT DESTROY IT.
-        #
-        # MAKE IT FALL.
-        # ====================================================
+        neighbor.damage++;
 
-        if neighbor.damage >= 2:
 
-            start_falling(
+        /* =================================================
+           SECOND HIT → FALL
+           ================================================= */
+
+        if (
+            neighbor.damage >= 2
+        ) {
+
+            startFalling(
                 neighbor
-            )
+            );
 
-            # ------------------------------------------------
-            # IMPORTANT:
-            #
-            # We do NOT set:
-            #
-            #     neighbor.alive = False
-            #
-            # The block remains visible while falling.
-            # ------------------------------------------------
 
-            # Remove structural connections so it cannot
-            # remain supported.
-
-            for connection in connections:
+            for (
+                const connection
+                of connections
+            ) {
 
                 if (
-                    connection.a == neighbor
-                    or
-                    connection.b == neighbor
-                ):
+                    connection.a === neighbor ||
+                    connection.b === neighbor
+                ) {
 
-                    connection.alive = False
+                    connection.alive = false;
 
-    # ========================================================
-    # RECALCULATE STRUCTURAL SUPPORT
-    # ========================================================
+                }
 
-    update_structural_support(
-        blocks,
-        connections,
-        pillars
-    )
+            }
 
-    # ========================================================
-    # ANY NEWLY UNSUPPORTED BLOCK FALLS
-    # ========================================================
+        }
 
-    for ice in blocks:
+    }
 
-        if not ice.alive:
-            continue
 
-        if not ice.supported:
+    /* =====================================================
+       RECALCULATE SUPPORT
+       ===================================================== */
 
-            start_falling(
-                ice
-            )
+    updateStructuralSupport();
 
 
-# ============================================================
-# WATER
-# ============================================================
+    /* =====================================================
+       UNSUPPORTED ICE FALLS
+       ===================================================== */
 
-def draw_water():
-
-    screen.fill(
-        WATER
-    )
-
-    for y in range(
-        10,
-        HEIGHT,
-        45
-    ):
-
-        for x in range(
-            10,
-            WIDTH,
-            70
-        ):
-
-            pygame.draw.arc(
-                screen,
-                WATER_LIGHT,
-                (
-                    x,
-                    y,
-                    35,
-                    12
-                ),
-                0,
-                math.pi,
-                2
-            )
-
-
-# ============================================================
-# PILLAR INDICATOR
-# ============================================================
-
-def draw_pillar_indicator(
-    pillar
-):
-
-    sx, sy = world_to_screen(
-        pillar.x,
-        pillar.y
-    )
-
-    pygame.draw.circle(
-        screen,
-        (
-            25,
-            100,
-            150
-        ),
-        (
-            sx,
-            sy
-        ),
-        5
-    )
-
-
-# ============================================================
-# HUD
-# ============================================================
-
-font = pygame.font.SysFont(
-    "Arial",
-    28,
-    bold=True
-)
-
-small_font = pygame.font.SysFont(
-    "Arial",
-    18
-)
-
-
-def draw_hud():
-
-    text = font.render(
-        f"Ice Broken: {ice_broken}",
-        True,
-        WHITE
-    )
-
-    screen.blit(
-        text,
-        (
-            20,
-            20
-        )
-    )
-
-    instruction = small_font.render(
-        "Click ice blocks to break them",
-        True,
-        WHITE
-    )
-
-    screen.blit(
-        instruction,
-        (
-            20,
-            58
-        )
-    )
-
-    controls = small_font.render(
-        "R = Restart    ESC = Quit",
-        True,
-        WHITE
-    )
-
-    screen.blit(
-        controls,
-        (
-            20,
-            82
-        )
-    )
-
-    physics = small_font.render(
-        "1 hit = normal    2 hits = falls",
-        True,
-        WHITE
-    )
-
-    screen.blit(
-        physics,
-        (
-            20,
-            HEIGHT - 30
-        )
-    )
-
-
-# ============================================================
-# GAME OVER
-# ============================================================
-
-def draw_game_over():
-
-    overlay = pygame.Surface(
-        (
-            WIDTH,
-            HEIGHT
-        ),
-        pygame.SRCALPHA
-    )
-
-    overlay.fill(
-        (
-            0,
-            0,
-            0,
-            130
-        )
-    )
-
-    screen.blit(
-        overlay,
-        (
-            0,
-            0
-        )
-    )
-
-    if won:
-
-        message = "PENGUIN SAVED!"
-
-        color = GREEN
-
-    else:
-
-        message = "PENGUIN FELL!"
-
-        color = RED
-
-    text = font.render(
-        message,
-        True,
-        color
-    )
-
-    screen.blit(
-        text,
-        (
-            WIDTH // 2 -
-            text.get_width() // 2,
-
-            HEIGHT // 2 -
-            30
-        )
-    )
-
-    restart = small_font.render(
-        "Press R to restart",
-        True,
-        WHITE
-    )
-
-    screen.blit(
-        restart,
-        (
-            WIDTH // 2 -
-            restart.get_width() // 2,
-
-            HEIGHT // 2 +
-            20
-        )
-    )
-
-
-# ============================================================
-# MAIN LOOP
-# ============================================================
-
-running = True
-
-while running:
-
-    # --------------------------------------------------------
-    # DELTA TIME
-    # --------------------------------------------------------
-
-    dt = clock.tick(
-        FPS
-    ) / 1000.0
-
-    dt = min(
-        dt,
-        0.02
-    )
-
-    # ========================================================
-    # EVENTS
-    # ========================================================
-
-    for event in pygame.event.get():
-
-        # ----------------------------------------------------
-        # QUIT
-        # ----------------------------------------------------
-
-        if event.type == pygame.QUIT:
-
-            running = False
-
-        # ====================================================
-        # KEYBOARD
-        # ====================================================
-
-        if event.type == pygame.KEYDOWN:
-
-            if event.key == pygame.K_ESCAPE:
-
-                running = False
-
-            elif event.key == pygame.K_r:
-
-                reset_game()
-
-        # ====================================================
-        # MOUSE
-        # ====================================================
-
-        if event.type == pygame.MOUSEBUTTONDOWN:
-
-            if (
-                event.button == 1
-                and
-                not game_over
-            ):
-
-                mouse_x, mouse_y = (
-                    pygame.mouse.get_pos()
-                )
-
-                break_ice(
-                    mouse_x,
-                    mouse_y
-                )
-
-    # ========================================================
-    # UPDATE
-    # ========================================================
-
-    if not game_over:
-
-        # ----------------------------------------------------
-        # Recalculate support
-        # ----------------------------------------------------
-
-        update_structural_support(
-            blocks,
-            connections,
-            pillars
-        )
-
-        # ----------------------------------------------------
-        # Ice physics
-        # ----------------------------------------------------
-
-        for block in blocks:
-
-            block.update(
-                dt
-            )
-
-        # ----------------------------------------------------
-        # Penguin physics
-        # ----------------------------------------------------
-
-        penguin.update(
-            blocks,
-            dt
-        )
-
-        # ----------------------------------------------------
-        # Penguin fell
-        # ----------------------------------------------------
-
-        if not penguin.alive:
-
-            game_over = True
-
-            won = False
-
-        # ----------------------------------------------------
-        # Win condition
-        # ----------------------------------------------------
-
-        alive_count = sum(
-            1
-            for block in blocks
-            if block.alive
-        )
+    for (
+        const ice of blocks
+    ) {
 
         if (
-            penguin.alive
-            and
-            alive_count <= 20
-        ):
+            !ice.alive
+        ) {
 
-            game_over = True
+            continue;
 
-            won = True
-
-    # ========================================================
-    # DRAW
-    # ========================================================
-
-    draw_water()
-
-    # --------------------------------------------------------
-    # Pillars
-    # --------------------------------------------------------
-
-    for pillar in pillars:
-
-        draw_pillar_indicator(
-            pillar
-        )
-
-    # --------------------------------------------------------
-    # Connections
-    # --------------------------------------------------------
-
-    for connection in connections:
-
-        connection.draw()
-
-    # --------------------------------------------------------
-    # Ice
-    # --------------------------------------------------------
-
-    for block in blocks:
-
-        block.draw()
-
-    # --------------------------------------------------------
-    # Penguin
-    # --------------------------------------------------------
-
-    penguin.draw()
-
-    # --------------------------------------------------------
-    # HUD
-    # --------------------------------------------------------
-
-    draw_hud()
-
-    # --------------------------------------------------------
-    # Game over
-    # --------------------------------------------------------
-
-    if game_over:
-
-        draw_game_over()
-
-    # --------------------------------------------------------
-    # Update display
-    # --------------------------------------------------------
-
-    pygame.display.flip()
+        }
 
 
-pygame.quit()
+        if (
+            !ice.supported
+        ) {
+
+            startFalling(
+                ice
+            );
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   SCORE
+   ========================================================= */
+
+function updateScore() {
+
+    scoreElement.innerText =
+        `Ice Broken: ${iceBroken}`;
+
+}
+
+
+/* =========================================================
+   GAME OVER
+   ========================================================= */
+
+function showGameOver() {
+
+    gameOver = true;
+
+    gameOverElement.style.display =
+        "flex";
+
+
+    if (won) {
+
+        gameOverMessage.innerText =
+            "PENGUIN SAVED!";
+
+        gameOverMessage.className =
+            "win";
+
+    }
+    else {
+
+        gameOverMessage.innerText =
+            "PENGUIN FELL!";
+
+        gameOverMessage.className =
+            "lose";
+
+    }
+
+}
+
+
+/* =========================================================
+   RESET
+   ========================================================= */
+
+function resetGame() {
+
+    gameOver = false;
+
+    won = false;
+
+    iceBroken = 0;
+
+    updateScore();
+
+
+    gameOverElement.style.display =
+        "none";
+
+
+    /* Remove old objects */
+
+    world.innerHTML = "";
+
+
+    createLevel();
+
+    updateStructuralSupport();
+
+
+    for (
+        const block of blocks
+    ) {
+
+        block.render();
+
+    }
+
+
+    for (
+        const connection
+        of connections
+    ) {
+
+        connection.render();
+
+    }
+
+
+    for (
+        const pillar
+        of pillars
+    ) {
+
+        pillar.render();
+
+    }
+
+
+    penguin.render();
+
+}
+
+
+/* =========================================================
+   UPDATE
+   ========================================================= */
+
+function update(dt) {
+
+    if (
+        gameOver
+    ) {
+
+        return;
+
+    }
+
+
+    /* =====================================================
+       STRUCTURAL SUPPORT
+       ===================================================== */
+
+    updateStructuralSupport();
+
+
+    /* =====================================================
+       ICE
+       ===================================================== */
+
+    for (
+        const block
+        of blocks
+    ) {
+
+        block.update(dt);
+
+    }
+
+
+    /* =====================================================
+       CONNECTIONS
+       ===================================================== */
+
+    for (
+        const connection
+        of connections
+    ) {
+
+        connection.render();
+
+    }
+
+
+    /* =====================================================
+       PENGUIN
+       ===================================================== */
+
+    penguin.update(dt);
+
+
+    /* =====================================================
+       PENGUIN FELL
+       ===================================================== */
+
+    if (
+        !penguin.alive
+    ) {
+
+        won = false;
+
+        showGameOver();
+
+        return;
+
+    }
+
+
+    /* =====================================================
+       WIN CONDITION
+       ===================================================== */
+
+    const aliveCount =
+        blocks.filter(
+            block =>
+                block.alive
+        ).length;
+
+
+    if (
+        penguin.alive &&
+        aliveCount <= 20
+    ) {
+
+        won = true;
+
+        showGameOver();
+
+    }
+
+}
+
+
+/* =========================================================
+   GAME LOOP
+   ========================================================= */
+
+function gameLoop(timestamp) {
+
+    let dt =
+        (timestamp - lastTime) /
+        1000;
+
+
+    dt =
+        Math.min(
+            dt,
+            0.02
+        );
+
+
+    lastTime =
+        timestamp;
+
+
+    update(dt);
+
+
+    requestAnimationFrame(
+        gameLoop
+    );
+
+}
+
+
+/* =========================================================
+   RESTART BUTTON
+   ========================================================= */
+
+restartButton.addEventListener(
+    "click",
+    function(event) {
+
+        event.stopPropagation();
+
+        resetGame();
+
+    }
+);
+
+
+/* =========================================================
+   KEYBOARD
+   ========================================================= */
+
+document.addEventListener(
+    "keydown",
+    function(event) {
+
+        if (
+            event.key === "r" ||
+            event.key === "R"
+        ) {
+
+            resetGame();
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   WATER ANIMATION
+   ========================================================= */
+
+function createWaterWaves() {
+
+    for (
+        let y = 10;
+        y < HEIGHT;
+        y += 45
+    ) {
+
+        for (
+            let x = 10;
+            x < WIDTH;
+            x += 70
+        ) {
+
+            const wave =
+                document.createElement("div");
+
+            wave.className =
+                "water-wave";
+
+            wave.style.left =
+                `${x}px`;
+
+            wave.style.top =
+                `${y}px`;
+
+            wave.style.opacity =
+                String(
+                    0.25 +
+                    Math.random() * 0.5
+                );
+
+            wave.style.transform =
+                `translateX(${
+                    Math.random() * 20
+                }px)`;
+
+            game.appendChild(
+                wave
+            );
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   START GAME
+   ========================================================= */
+
+createWaterWaves();
+
+resetGame();
+
+requestAnimationFrame(
+    gameLoop
+);
+
+</script>
+
+</body>
+</html>
+"""
+
+
+components.html(
+    GAME_HTML,
+    height=780,
+    scrolling=False,
+)
