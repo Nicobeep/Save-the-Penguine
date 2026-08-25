@@ -2,398 +2,705 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 
+# ============================================================
+# STREAMLIT CONFIG
+# ============================================================
+
 st.set_page_config(
     page_title="Save the Penguin",
     page_icon="🐧",
-    layout="centered",
+    layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
+
+# ============================================================
+# GAME
+# ============================================================
 
 GAME_HTML = r"""
 <!DOCTYPE html>
 <html>
+
 <head>
 
 <meta charset="UTF-8">
 
 <style>
 
-html, body {
+/* ============================================================
+   PAGE
+   ============================================================ */
+
+html,
+body {
+
     margin: 0;
     padding: 0;
-    background: transparent;
+
+    width: 100%;
+    height: 100%;
+
     overflow: hidden;
+
+    background: transparent;
+
     font-family: Arial, sans-serif;
+
 }
+
+
+/* ============================================================
+   RESPONSIVE GAME CONTAINER
+   ============================================================ */
 
 #game-container {
-    width: 100%;
-    display: flex;
-    justify-content: center;
+
+    position: relative;
+
+    width: 100vw;
+    height: 100vh;
+
+    overflow: hidden;
+
 }
+
+
+/*
+    The actual game keeps its original
+    1000 × 750 coordinate system.
+
+    JavaScript scales it to fill
+    the available browser space.
+*/
 
 #game {
-    position: relative;
+
+    position: absolute;
+
     width: 1000px;
-    max-width: 100%;
-    aspect-ratio: 1200 / 1000;
+    height: 750px;
+
+    left: 50%;
+    top: 50%;
+
+    transform-origin: center center;
+
     overflow: hidden;
-    background: #2387d2;
+
+    background: rgb(35, 135, 210);
+
     border-radius: 12px;
+
     user-select: none;
+
     cursor: pointer;
-}
 
-/* =========================================================
-   WATER
-   ========================================================= */
-
-.water-wave {
-    position: absolute;
-    width: 34px;
-    height: 10px;
-    border-top: 2px solid rgba(100, 190, 235, 0.75);
-    border-radius: 50%;
-    pointer-events: none;
 }
 
 
-/* =========================================================
-   HUD
-   ========================================================= */
-
-#hud {
-    position: absolute;
-    left: 20px;
-    top: 18px;
-    z-index: 1000;
-    color: white;
-    text-shadow: 1px 1px 3px rgba(0,0,0,0.35);
-    pointer-events: none;
-}
-
-#score {
-    font-size: 27px;
-    font-weight: bold;
-}
-
-#instructions {
-    margin-top: 5px;
-    font-size: 17px;
-}
-
-#controls {
-    margin-top: 3px;
-    font-size: 15px;
-}
-
-#physics {
-    position: absolute;
-    bottom: 13px;
-    left: 20px;
-    color: white;
-    font-size: 15px;
-    z-index: 1000;
-    text-shadow: 1px 1px 3px rgba(0,0,0,0.35);
-}
-
-
-/* =========================================================
-   GAME OBJECTS
-   ========================================================= */
+/* ============================================================
+   WORLD
+   ============================================================ */
 
 #world {
+
     position: absolute;
-    inset: 0;
-    transform-origin: center center;
-}
 
-.ice {
-    position: absolute;
-    width: 55px;
-    height: 55px;
-    transform-origin: center center;
-    background: rgb(175, 230, 250);
-    border: 3px solid rgb(70, 155, 195);
-    border-radius: 8px;
-    box-sizing: border-box;
-    z-index: 20;
-    transition: box-shadow 0.08s;
-}
+    width: 1000px;
+    height: 750px;
 
-.ice:hover {
-    box-shadow:
-        0 0 0 3px rgba(245,205,60,0.85);
-}
-
-.ice.pillar {
-    cursor: not-allowed;
-}
-
-.ice.falling {
-    pointer-events: none;
-}
-
-.connection {
-    position: absolute;
-    height: 3px;
-    background: rgb(70,155,195);
-    transform-origin: left center;
-    z-index: 5;
-    pointer-events: none;
-}
-
-
-/* =========================================================
-   PILLAR INDICATORS
-   ========================================================= */
-
-.pillar-indicator {
-    position: absolute;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: rgb(25,100,150);
-    transform: translate(-50%, -50%);
-    z-index: 10;
-    pointer-events: none;
-}
-
-
-/* =========================================================
-   PENGUIN
-   ========================================================= */
-
-#penguin {
-    position: absolute;
-    width: 44px;
-    height: 52px;
-    transform: translate(-50%, -50%);
-    z-index: 500;
-    pointer-events: none;
-}
-
-.penguin-body {
-    position: absolute;
-    width: 44px;
-    height: 44px;
     left: 0;
     top: 0;
-    background: rgb(25,30,35);
-    border-radius: 50%;
+
 }
+
+
+/* ============================================================
+   WATER
+   ============================================================ */
+
+.water-wave {
+
+    position: absolute;
+
+    width: 35px;
+    height: 12px;
+
+    border-top:
+        2px solid
+        rgba(100, 190, 235, 0.75);
+
+    border-radius: 50%;
+
+    pointer-events: none;
+
+}
+
+
+/* ============================================================
+   HUD
+   ============================================================ */
+
+#hud {
+
+    position: absolute;
+
+    left: 20px;
+    top: 18px;
+
+    z-index: 1000;
+
+    color: white;
+
+    text-shadow:
+        1px 1px 3px
+        rgba(0,0,0,0.35);
+
+    pointer-events: none;
+
+}
+
+
+#score {
+
+    font-size: 30px;
+
+    font-weight: bold;
+
+}
+
+
+#instructions {
+
+    margin-top: 6px;
+
+    font-size: 18px;
+
+}
+
+
+#controls {
+
+    margin-top: 4px;
+
+    font-size: 16px;
+
+}
+
+
+#physics {
+
+    position: absolute;
+
+    bottom: 15px;
+    left: 20px;
+
+    color: white;
+
+    font-size: 16px;
+
+    z-index: 1000;
+
+    text-shadow:
+        1px 1px 3px
+        rgba(0,0,0,0.35);
+
+}
+
+
+/* ============================================================
+   ICE
+   ============================================================ */
+
+.ice {
+
+    position: absolute;
+
+    width: 55px;
+    height: 55px;
+
+    box-sizing: border-box;
+
+    background:
+        rgb(175, 230, 250);
+
+    border:
+        3px solid
+        rgb(70, 155, 195);
+
+    border-radius: 8px;
+
+    transform-origin: center center;
+
+    z-index: 20;
+
+    cursor: pointer;
+
+}
+
+
+.ice:hover {
+
+    box-shadow:
+        0 0 0 4px
+        rgba(245,205,60,0.9);
+
+}
+
+
+.ice.pillar {
+
+    cursor: not-allowed;
+
+}
+
+
+.ice.falling {
+
+    pointer-events: none;
+
+}
+
+
+/* ============================================================
+   CONNECTIONS
+   ============================================================ */
+
+.connection {
+
+    position: absolute;
+
+    height: 3px;
+
+    background:
+        rgb(70,155,195);
+
+    transform-origin:
+        left center;
+
+    z-index: 5;
+
+    pointer-events: none;
+
+}
+
+
+/* ============================================================
+   PILLAR INDICATORS
+   ============================================================ */
+
+.pillar-indicator {
+
+    position: absolute;
+
+    width: 10px;
+    height: 10px;
+
+    border-radius: 50%;
+
+    background:
+        rgb(25,100,150);
+
+    transform:
+        translate(-50%, -50%);
+
+    z-index: 10;
+
+    pointer-events: none;
+
+}
+
+
+/* ============================================================
+   PENGUIN
+   ============================================================ */
+
+#penguin {
+
+    position: absolute;
+
+    width: 44px;
+    height: 52px;
+
+    transform:
+        translate(-50%, -50%);
+
+    z-index: 500;
+
+    pointer-events: none;
+
+}
+
+
+.penguin-body {
+
+    position: absolute;
+
+    width: 44px;
+    height: 44px;
+
+    left: 0;
+    top: 0;
+
+    background:
+        rgb(25,30,35);
+
+    border-radius: 50%;
+
+}
+
 
 .penguin-belly {
+
     position: absolute;
+
     width: 26px;
     height: 27px;
+
     left: 9px;
     top: 15px;
-    background: rgb(240,245,245);
+
+    background:
+        rgb(240,245,245);
+
     border-radius: 50%;
+
 }
+
 
 .eye {
+
     position: absolute;
+
     width: 9px;
     height: 9px;
+
     top: 10px;
+
     background: white;
+
     border-radius: 50%;
+
 }
+
 
 .eye.left {
+
     left: 8px;
+
 }
+
 
 .eye.right {
+
     right: 8px;
+
 }
+
 
 .pupil {
+
     position: absolute;
+
     width: 4px;
     height: 4px;
-    background: rgb(25,30,35);
-    border-radius: 50%;
+
     top: 13px;
+
+    background:
+        rgb(25,30,35);
+
+    border-radius: 50%;
+
 }
+
 
 .pupil.left {
+
     left: 11px;
+
 }
+
 
 .pupil.right {
+
     right: 11px;
+
 }
+
 
 .beak {
+
     position: absolute;
+
     left: 16px;
     top: 20px;
+
     width: 0;
     height: 0;
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-top: 9px solid rgb(255,165,45);
+
+    border-left:
+        6px solid transparent;
+
+    border-right:
+        6px solid transparent;
+
+    border-top:
+        9px solid
+        rgb(255,165,45);
+
 }
+
 
 .foot {
+
     position: absolute;
+
     width: 22px;
     height: 7px;
+
     top: 39px;
-    background: rgb(255,165,45);
+
+    background:
+        rgb(255,165,45);
+
     border-radius: 50%;
+
 }
+
 
 .foot.left {
+
     left: -2px;
+
 }
+
 
 .foot.right {
+
     right: -2px;
+
 }
 
 
-/* =========================================================
-   GAME OVER
-   ========================================================= */
-
-#game-over {
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.52);
-    z-index: 2000;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    color: white;
-}
-
-#game-over-message {
-    font-size: 38px;
-    font-weight: bold;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-}
-
-#game-over-message.win {
-    color: rgb(60,210,100);
-}
-
-#game-over-message.lose {
-    color: rgb(225,60,60);
-}
-
-#restart-message {
-    margin-top: 15px;
-    font-size: 18px;
-}
-
-
-/* =========================================================
+/* ============================================================
    RESTART BUTTON
-   ========================================================= */
+   ============================================================ */
 
 #restart-button {
+
     position: absolute;
+
     right: 20px;
     top: 20px;
+
     z-index: 1200;
+
     border: none;
-    border-radius: 7px;
-    padding: 9px 16px;
-    background: rgba(255,255,255,0.92);
-    color: #164c6a;
+
+    border-radius: 8px;
+
+    padding:
+        10px 18px;
+
+    background:
+        rgba(255,255,255,0.94);
+
+    color:
+        rgb(22,76,106);
+
     font-weight: bold;
-    font-size: 15px;
+
+    font-size: 16px;
+
     cursor: pointer;
+
 }
+
 
 #restart-button:hover {
+
     background: white;
+
+    transform:
+        scale(1.04);
+
 }
 
 
-/* =========================================================
-   RESPONSIVE
-   ========================================================= */
+/* ============================================================
+   GAME OVER
+   ============================================================ */
 
-@media (max-width: 700px) {
+#game-over {
+
+    position: absolute;
+
+    inset: 0;
+
+    background:
+        rgba(0,0,0,0.52);
+
+    z-index: 2000;
+
+    display: none;
+
+    align-items: center;
+
+    justify-content: center;
+
+    flex-direction: column;
+
+    color: white;
+
+}
+
+
+#game-over-message {
+
+    font-size: 42px;
+
+    font-weight: bold;
+
+    text-shadow:
+        2px 2px 4px
+        rgba(0,0,0,0.5);
+
+}
+
+
+#game-over-message.win {
+
+    color:
+        rgb(60,210,100);
+
+}
+
+
+#game-over-message.lose {
+
+    color:
+        rgb(225,60,60);
+
+}
+
+
+#restart-message {
+
+    margin-top: 16px;
+
+    font-size: 20px;
+
+}
+
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+
+@media (max-width: 600px) {
 
     #score {
-        font-size: 20px;
+
+        font-size: 25px;
+
     }
 
-    #instructions,
-    #controls,
+    #instructions {
+
+        font-size: 15px;
+
+    }
+
+    #controls {
+
+        font-size: 13px;
+
+    }
+
     #physics {
-        font-size: 12px;
+
+        font-size: 13px;
+
     }
 
-    #restart-button {
-        font-size: 12px;
-        padding: 7px 10px;
-    }
 }
 
 </style>
 
 </head>
 
+
 <body>
+
 
 <div id="game-container">
 
-<div id="game">
+    <div id="game">
 
-    <div id="world"></div>
+        <div id="world"></div>
 
-    <div id="hud">
 
-        <div id="score">
-            Ice Broken: 0
+        <!-- ==================================================
+             HUD
+             ================================================== -->
+
+        <div id="hud">
+
+            <div id="score">
+                Ice Broken: 0
+            </div>
+
+            <div id="instructions">
+                Click ice blocks to break them
+            </div>
+
+            <div id="controls">
+                R = Restart
+            </div>
+
         </div>
 
-        <div id="instructions">
-            Click ice blocks to break them
+
+        <div id="physics">
+            1 hit = normal&nbsp;&nbsp;&nbsp;2 hits = falls
         </div>
 
-        <div id="controls">
-            R = Restart
+
+        <!-- ==================================================
+             RESTART
+             ================================================== -->
+
+        <button id="restart-button">
+            Restart
+        </button>
+
+
+        <!-- ==================================================
+             GAME OVER
+             ================================================== -->
+
+        <div id="game-over">
+
+            <div id="game-over-message"></div>
+
+            <div id="restart-message">
+                Press R or click Restart
+            </div>
+
         </div>
 
     </div>
-
-    <div id="physics">
-        1 hit = normal &nbsp;&nbsp; 2 hits = falls
-    </div>
-
-    <button id="restart-button">
-        Restart
-    </button>
-
-    <div id="game-over">
-
-        <div id="game-over-message"></div>
-
-        <div id="restart-message">
-            Press R or click Restart
-        </div>
-
-    </div>
-
-</div>
 
 </div>
 
 
 <script>
 
-/* =========================================================
+/* ============================================================
    CONSTANTS
-   ========================================================= */
+   ============================================================ */
 
 const WIDTH = 1000;
 const HEIGHT = 750;
@@ -402,8 +709,6 @@ const CENTER_X = WIDTH / 2;
 const CENTER_Y = HEIGHT / 2;
 
 const GRAVITY = 900;
-
-const WATER_LEVEL = 0;
 
 const ICE_THICKNESS = 20;
 const ICE_SIZE = 55;
@@ -414,93 +719,199 @@ const PLATFORM_HEIGHT = 180;
 
 const FALL_LIMIT = -250;
 
-const FPS = 60;
 
+/* ============================================================
+   ELEMENTS
+   ============================================================ */
 
-/* =========================================================
-   GAME ELEMENTS
-   ========================================================= */
+const game =
+    document.getElementById("game");
 
-const game = document.getElementById("game");
-const world = document.getElementById("world");
+const gameContainer =
+    document.getElementById(
+        "game-container"
+    );
+
+const world =
+    document.getElementById("world");
 
 const scoreElement =
     document.getElementById("score");
 
 const gameOverElement =
-    document.getElementById("game-over");
+    document.getElementById(
+        "game-over"
+    );
 
 const gameOverMessage =
-    document.getElementById("game-over-message");
+    document.getElementById(
+        "game-over-message"
+    );
 
 const restartButton =
-    document.getElementById("restart-button");
+    document.getElementById(
+        "restart-button"
+    );
 
 
-/* =========================================================
-   GAME STATE
-   ========================================================= */
+/* ============================================================
+   STATE
+   ============================================================ */
 
 let blocks = [];
+
 let connections = [];
+
 let pillars = [];
+
 let penguin = null;
 
 let iceBroken = 0;
 
 let gameOver = false;
+
 let won = false;
 
-let lastTime = performance.now();
+let lastTime =
+    performance.now();
 
 
-/* =========================================================
-   RANDOM
-   ========================================================= */
+/* ============================================================
+   RESPONSIVE SCALING
+   ============================================================
 
-function randomUniform(min, max) {
+   The actual game is still 1000 × 750.
 
-    return min +
-        Math.random() *
-        (max - min);
+   We scale that entire game to fit
+   the available browser window.
+
+   This means the game gets larger on
+   large monitors and smaller on phones.
+   ============================================================ */
+
+function resizeGame() {
+
+    const availableWidth =
+        window.innerWidth;
+
+    const availableHeight =
+        window.innerHeight;
+
+
+    const horizontalPadding = 8;
+
+    const verticalPadding = 8;
+
+
+    const scaleX =
+        (
+            availableWidth -
+            horizontalPadding
+        ) / WIDTH;
+
+
+    const scaleY =
+        (
+            availableHeight -
+            verticalPadding
+        ) / HEIGHT;
+
+
+    let scale =
+        Math.min(
+            scaleX,
+            scaleY
+        );
+
+
+    /*
+        Don't make the game tiny.
+
+        On a normal desktop this will
+        usually be around 1.0–1.4.
+    */
+
+    scale =
+        Math.max(
+            0.55,
+            scale
+        );
+
+
+    game.style.transform =
+        `translate(-50%, -50%) scale(${scale})`;
 
 }
 
 
-/* =========================================================
+window.addEventListener(
+    "resize",
+    resizeGame
+);
+
+resizeGame();
+
+
+/* ============================================================
+   RANDOM
+   ============================================================ */
+
+function randomUniform(min, max) {
+
+    return (
+        min +
+        Math.random() *
+        (max - min)
+    );
+
+}
+
+
+/* ============================================================
    WORLD → SCREEN
-   ========================================================= */
+   ============================================================ */
 
 function worldToScreen(x, y) {
 
     return {
 
-        x: CENTER_X + x,
+        x:
+            CENTER_X + x,
 
-        y: CENTER_Y + y
+        y:
+            CENTER_Y + y
 
     };
 
 }
 
 
-/* =========================================================
+/* ============================================================
    ICE BLOCK
-   ========================================================= */
+   ============================================================ */
 
 class IceBlock {
 
-    constructor(x, y, row, col) {
+    constructor(
+        x,
+        y,
+        row,
+        col
+    ) {
 
         this.x = x;
+
         this.y = y;
 
         this.row = row;
+
         this.col = col;
 
-        this.size = ICE_SIZE;
+        this.size =
+            ICE_SIZE;
 
-        this.z = PLATFORM_HEIGHT;
+        this.z =
+            PLATFORM_HEIGHT;
 
         this.vz = 0;
 
@@ -518,17 +929,29 @@ class IceBlock {
 
         this.damage = 0;
 
+
         this.element =
-            document.createElement("div");
+            document.createElement(
+                "div"
+            );
 
-        this.element.className = "ice";
 
-        this.element.dataset.row = row;
-        this.element.dataset.col = col;
+        this.element.className =
+            "ice";
+
+
+        this.element.dataset.row =
+            row;
+
+
+        this.element.dataset.col =
+            col;
+
 
         world.appendChild(
             this.element
         );
+
 
         this.element.addEventListener(
             "click",
@@ -551,20 +974,25 @@ class IceBlock {
     update(dt) {
 
         if (!this.alive) {
+
             return;
+
         }
 
 
-        /* =====================================================
+        /* ====================================================
            SUPPORTED
-           ===================================================== */
+           ==================================================== */
 
         if (this.supported) {
 
             this.vz = 0;
 
+
             const difference =
-                PLATFORM_HEIGHT - this.z;
+                PLATFORM_HEIGHT -
+                this.z;
+
 
             this.z +=
                 difference *
@@ -573,24 +1001,30 @@ class IceBlock {
                     15 * dt
                 );
 
-            this.angularVelocity *= 0.90;
+
+            this.angularVelocity *=
+                0.90;
 
         }
 
 
-        /* =====================================================
+        /* ====================================================
            FALLING
-           ===================================================== */
+           ==================================================== */
 
         else {
 
             this.vz -=
                 GRAVITY * dt;
 
+
             this.z +=
                 this.vz * dt;
 
-            this.angularVelocity *= 0.995;
+
+            this.angularVelocity *=
+                0.995;
+
 
             this.angle +=
                 this.angularVelocity * dt;
@@ -606,11 +1040,20 @@ class IceBlock {
         }
 
 
-        if (this.z < FALL_LIMIT) {
+        /* ====================================================
+           REMOVE AFTER FALLING
+           ==================================================== */
+
+        if (
+            this.z <
+            FALL_LIMIT
+        ) {
 
             this.alive = false;
 
             this.element.remove();
+
+            return;
 
         }
 
@@ -623,8 +1066,11 @@ class IceBlock {
     render() {
 
         if (!this.alive) {
+
             return;
+
         }
+
 
         const position =
             worldToScreen(
@@ -632,52 +1078,59 @@ class IceBlock {
                 this.y
             );
 
+
         const scale =
             Math.max(
                 0.75,
                 Math.min(
                     1.25,
-                    1 + this.z * 0.001
+                    1 +
+                    this.z * 0.001
                 )
             );
+
 
         const size =
             ICE_SIZE * scale;
 
 
         this.element.style.left =
-            `${position.x - size / 2}px`;
+            `${
+                position.x -
+                size / 2
+            }px`;
+
 
         this.element.style.top =
-            `${position.y - size / 2}px`;
+            `${
+                position.y -
+                size / 2
+            }px`;
+
 
         this.element.style.width =
             `${size}px`;
 
+
         this.element.style.height =
             `${size}px`;
 
+
         this.element.style.transform =
-            `rotate(${-this.angle * 180 / Math.PI}deg)`;
-
-
-        if (this.supported) {
-
-            this.element.style.opacity = "1";
-
-        }
-        else {
-
-            this.element.style.opacity = "1";
-
-        }
+            `rotate(${
+                -this.angle *
+                180 /
+                Math.PI
+            }deg)`;
 
     }
 
 
     destroyElement() {
 
-        if (this.element) {
+        if (
+            this.element
+        ) {
 
             this.element.remove();
 
@@ -688,24 +1141,30 @@ class IceBlock {
 }
 
 
-/* =========================================================
+/* ============================================================
    CONNECTION
-   ========================================================= */
+   ============================================================ */
 
 class Connection {
 
     constructor(a, b) {
 
         this.a = a;
+
         this.b = b;
 
         this.alive = true;
 
+
         this.element =
-            document.createElement("div");
+            document.createElement(
+                "div"
+            );
+
 
         this.element.className =
             "connection";
+
 
         world.appendChild(
             this.element
@@ -729,11 +1188,13 @@ class Connection {
 
         }
 
+
         const a =
             worldToScreen(
                 this.a.x,
                 this.a.y
             );
+
 
         const b =
             worldToScreen(
@@ -741,14 +1202,21 @@ class Connection {
                 this.b.y
             );
 
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
+
+        const dx =
+            b.x - a.x;
+
+
+        const dy =
+            b.y - a.y;
+
 
         const length =
             Math.sqrt(
                 dx * dx +
                 dy * dy
             );
+
 
         const angle =
             Math.atan2(
@@ -758,38 +1226,34 @@ class Connection {
             180 /
             Math.PI;
 
+
         this.element.style.display =
             "block";
+
 
         this.element.style.left =
             `${a.x}px`;
 
+
         this.element.style.top =
             `${a.y - 1.5}px`;
 
+
         this.element.style.width =
             `${length}px`;
+
 
         this.element.style.transform =
             `rotate(${angle}deg)`;
 
     }
 
-
-    destroy() {
-
-        this.alive = false;
-
-        this.element.remove();
-
-    }
-
 }
 
 
-/* =========================================================
+/* ============================================================
    SUPPORT PILLAR
-   ========================================================= */
+   ============================================================ */
 
 class SupportPillar {
 
@@ -798,20 +1262,27 @@ class SupportPillar {
         this.block = block;
 
         this.x = block.x;
+
         this.y = block.y;
 
         this.height =
             PLATFORM_HEIGHT;
 
+
         this.element =
-            document.createElement("div");
+            document.createElement(
+                "div"
+            );
+
 
         this.element.className =
             "pillar-indicator";
 
+
         world.appendChild(
             this.element
         );
+
 
         this.render();
 
@@ -833,8 +1304,10 @@ class SupportPillar {
                 this.y
             );
 
+
         this.element.style.left =
             `${position.x}px`;
+
 
         this.element.style.top =
             `${position.y}px`;
@@ -844,21 +1317,24 @@ class SupportPillar {
 }
 
 
-/* =========================================================
+/* ============================================================
    PENGUIN
-   ========================================================= */
+   ============================================================ */
 
 class Penguin {
 
     constructor(x, y) {
 
         this.x = x;
+
         this.y = y;
+
 
         this.z =
             PLATFORM_HEIGHT +
             ICE_THICKNESS +
             PENGUIN_RADIUS;
+
 
         this.vz = 0;
 
@@ -870,10 +1346,14 @@ class Penguin {
 
 
         this.element =
-            document.createElement("div");
+            document.createElement(
+                "div"
+            );
+
 
         this.element.id =
             "penguin";
+
 
         this.element.innerHTML = `
 
@@ -882,17 +1362,21 @@ class Penguin {
             <div class="penguin-belly"></div>
 
             <div class="eye left"></div>
+
             <div class="eye right"></div>
 
             <div class="pupil left"></div>
+
             <div class="pupil right"></div>
 
             <div class="beak"></div>
 
             <div class="foot left"></div>
+
             <div class="foot right"></div>
 
         `;
+
 
         world.appendChild(
             this.element
@@ -914,20 +1398,28 @@ class Penguin {
         ) {
 
             if (!block.alive) {
+
                 continue;
+
             }
 
+
             const dx =
-                this.x - block.x;
+                this.x -
+                block.x;
+
 
             const dy =
-                this.y - block.y;
+                this.y -
+                block.y;
+
 
             const distance =
                 Math.sqrt(
                     dx * dx +
                     dy * dy
                 );
+
 
             if (
                 distance <
@@ -939,7 +1431,8 @@ class Penguin {
                     bestDistance
                 ) {
 
-                    best = block;
+                    best =
+                        block;
 
                     bestDistance =
                         distance;
@@ -950,6 +1443,7 @@ class Penguin {
 
         }
 
+
         return best;
 
     }
@@ -958,7 +1452,9 @@ class Penguin {
     update(dt) {
 
         if (!this.alive) {
+
             return;
+
         }
 
 
@@ -976,13 +1472,15 @@ class Penguin {
                 support.z +
                 ICE_THICKNESS / 2;
 
+
             const penguinBottom =
                 this.z -
                 PENGUIN_RADIUS;
 
 
             if (
-                penguinBottom <= iceTop &&
+                penguinBottom <=
+                    iceTop &&
                 this.vz < 0
             ) {
 
@@ -990,7 +1488,9 @@ class Penguin {
                     iceTop +
                     PENGUIN_RADIUS;
 
+
                 this.vz = 0;
+
 
                 this.support =
                     support;
@@ -1009,9 +1509,12 @@ class Penguin {
             this.vz * dt;
 
 
-        if (this.z < -40) {
+        if (
+            this.z < -40
+        ) {
 
-            this.alive = false;
+            this.alive =
+                false;
 
         }
 
@@ -1049,7 +1552,8 @@ class Penguin {
                 0.7,
                 Math.min(
                     1.25,
-                    1 + this.z * 0.001
+                    1 +
+                    this.z * 0.001
                 )
             );
 
@@ -1057,29 +1561,35 @@ class Penguin {
         this.element.style.left =
             `${position.x}px`;
 
+
         this.element.style.top =
             `${position.y}px`;
 
+
         this.element.style.transform =
-            `translate(-50%, -50%) scale(${scale})`;
+            `translate(-50%, -50%)
+             scale(${scale})`;
 
     }
 
 }
 
 
-/* =========================================================
+/* ============================================================
    CREATE LEVEL
-   ========================================================= */
+   ============================================================ */
 
 function createLevel() {
 
     blocks = [];
+
     connections = [];
+
     pillars = [];
 
 
     const rows = 7;
+
     const cols = 10;
 
     const spacing = 60;
@@ -1102,9 +1612,9 @@ function createLevel() {
     const grid = [];
 
 
-    /* =====================================================
-       CREATE BLOCKS
-       ===================================================== */
+    /* ========================================================
+       ICE BLOCKS
+       ======================================================== */
 
     for (
         let row = 0;
@@ -1125,6 +1635,7 @@ function createLevel() {
                 startX +
                 col * spacing;
 
+
             let y =
                 startY +
                 row * spacing;
@@ -1135,6 +1646,7 @@ function createLevel() {
                     -2,
                     2
                 );
+
 
             y +=
                 randomUniform(
@@ -1152,21 +1664,28 @@ function createLevel() {
                 );
 
 
-            rowBlocks.push(block);
+            rowBlocks.push(
+                block
+            );
 
-            blocks.push(block);
+
+            blocks.push(
+                block
+            );
 
         }
 
 
-        grid.push(rowBlocks);
+        grid.push(
+            rowBlocks
+        );
 
     }
 
 
-    /* =====================================================
-       FOUR SUPPORT PILLARS
-       ===================================================== */
+    /* ========================================================
+       FOUR CORNER PILLARS
+       ======================================================== */
 
     const cornerBlocks = [
 
@@ -1182,12 +1701,16 @@ function createLevel() {
 
 
     for (
-        const block of cornerBlocks
+        const block of
+        cornerBlocks
     ) {
 
         pillars.push(
-            new SupportPillar(block)
+            new SupportPillar(
+                block
+            )
         );
+
 
         block.element.classList.add(
             "pillar"
@@ -1196,9 +1719,9 @@ function createLevel() {
     }
 
 
-    /* =====================================================
+    /* ========================================================
        CONNECTIONS
-       ===================================================== */
+       ======================================================== */
 
     for (
         let row = 0;
@@ -1216,8 +1739,6 @@ function createLevel() {
                 grid[row][col];
 
 
-            /* RIGHT */
-
             if (
                 col <
                 cols - 1
@@ -1229,22 +1750,25 @@ function createLevel() {
                         grid[row][col + 1]
                     );
 
+
                 connections.push(
                     connection
                 );
+
 
                 current.connections.push(
                     connection
                 );
 
+
                 grid[row][col + 1]
                     .connections
-                    .push(connection);
+                    .push(
+                        connection
+                    );
 
             }
 
-
-            /* DOWN */
 
             if (
                 row <
@@ -1257,17 +1781,22 @@ function createLevel() {
                         grid[row + 1][col]
                     );
 
+
                 connections.push(
                     connection
                 );
+
 
                 current.connections.push(
                     connection
                 );
 
+
                 grid[row + 1][col]
                     .connections
-                    .push(connection);
+                    .push(
+                        connection
+                    );
 
             }
 
@@ -1276,9 +1805,9 @@ function createLevel() {
     }
 
 
-    /* =====================================================
+    /* ========================================================
        PENGUIN
-       ===================================================== */
+       ======================================================== */
 
     const centerRow =
         Math.floor(
@@ -1311,18 +1840,18 @@ function createLevel() {
 }
 
 
-/* =========================================================
+/* ============================================================
    STRUCTURAL SUPPORT
-   ========================================================= */
+   ============================================================ */
 
 function updateStructuralSupport() {
-
 
     for (
         const block of blocks
     ) {
 
-        block.supported = false;
+        block.supported =
+            false;
 
     }
 
@@ -1338,11 +1867,17 @@ function updateStructuralSupport() {
             pillar.block;
 
 
-        if (block.alive) {
+        if (
+            block.alive
+        ) {
 
-            block.supported = true;
+            block.supported =
+                true;
 
-            queue.push(block);
+
+            queue.push(
+                block
+            );
 
         }
 
@@ -1362,35 +1897,29 @@ function updateStructuralSupport() {
             of current.connections
         ) {
 
-            if (!connection.alive) {
+            if (
+                !connection.alive
+            ) {
+
                 continue;
+
             }
+
 
             if (
                 !connection.a.alive ||
                 !connection.b.alive
             ) {
+
                 continue;
+
             }
 
 
-            let neighbor;
-
-
-            if (
+            const neighbor =
                 connection.a === current
-            ) {
-
-                neighbor =
-                    connection.b;
-
-            }
-            else {
-
-                neighbor =
-                    connection.a;
-
-            }
+                    ? connection.b
+                    : connection.a;
 
 
             if (
@@ -1399,6 +1928,7 @@ function updateStructuralSupport() {
 
                 neighbor.supported =
                     true;
+
 
                 queue.push(
                     neighbor
@@ -1413,41 +1943,35 @@ function updateStructuralSupport() {
 }
 
 
-/* =========================================================
+/* ============================================================
    PILLAR CHECK
-   ========================================================= */
+   ============================================================ */
 
 function isPillarBlock(block) {
 
-    for (
-        const pillar of pillars
-    ) {
-
-        if (
+    return pillars.some(
+        pillar =>
             pillar.block === block
-        ) {
-
-            return true;
-
-        }
-
-    }
-
-    return false;
+    );
 
 }
 
 
-/* =========================================================
+/* ============================================================
    ADJACENT BLOCKS
-   ========================================================= */
+   ============================================================ */
 
 function getAdjacentBlocks(block) {
 
     const adjacent = [];
 
-    const ADJACENT_DISTANCE = 70;
-    const ALIGNMENT_TOLERANCE = 15;
+
+    const ADJACENT_DISTANCE =
+        70;
+
+
+    const ALIGNMENT_TOLERANCE =
+        15;
 
 
     for (
@@ -1506,7 +2030,9 @@ function getAdjacentBlocks(block) {
             vertical
         ) {
 
-            adjacent.push(other);
+            adjacent.push(
+                other
+            );
 
         }
 
@@ -1518,25 +2044,31 @@ function getAdjacentBlocks(block) {
 }
 
 
-/* =========================================================
+/* ============================================================
    START FALLING
-   ========================================================= */
+   ============================================================ */
 
 function startFalling(block) {
 
-    if (!block.alive) {
+    if (
+        !block.alive
+    ) {
+
         return;
+
     }
 
 
-    block.supported = false;
+    block.supported =
+        false;
 
 
     if (
         block.vz >= 0
     ) {
 
-        block.vz = -50;
+        block.vz =
+            -50;
 
     }
 
@@ -1563,15 +2095,16 @@ function startFalling(block) {
 }
 
 
-/* =========================================================
+/* ============================================================
    BREAK ICE
-   ========================================================= */
+   ============================================================ */
 
 function breakIce(block) {
 
     if (
         !block ||
-        !block.alive
+        !block.alive ||
+        gameOver
     ) {
 
         return;
@@ -1579,9 +2112,9 @@ function breakIce(block) {
     }
 
 
-    /* =====================================================
-       PILLARS CANNOT BE DIRECTLY DESTROYED
-       ===================================================== */
+    /* ========================================================
+       PILLARS CANNOT BE DESTROYED
+       ======================================================== */
 
     if (
         isPillarBlock(block)
@@ -1592,32 +2125,40 @@ function breakIce(block) {
     }
 
 
-    /* =====================================================
-       FIND NEIGHBORS BEFORE REMOVAL
-       ===================================================== */
+    /* ========================================================
+       FIND ADJACENT BLOCKS FIRST
+       ======================================================== */
 
     const adjacentBlocks =
-        getAdjacentBlocks(block);
+        getAdjacentBlocks(
+            block
+        );
 
 
-    /* =====================================================
+    /* ========================================================
        DIRECT CLICK
-       ===================================================== */
+       ======================================================== */
 
-    block.alive = false;
+    block.alive =
+        false;
 
-    block.supported = false;
+
+    block.supported =
+        false;
+
 
     block.destroyElement();
 
+
     iceBroken++;
+
 
     updateScore();
 
 
-    /* =====================================================
+    /* ========================================================
        REMOVE CONNECTIONS
-       ===================================================== */
+       ======================================================== */
 
     for (
         const connection
@@ -1629,16 +2170,17 @@ function breakIce(block) {
             connection.b === block
         ) {
 
-            connection.alive = false;
+            connection.alive =
+                false;
 
         }
 
     }
 
 
-    /* =====================================================
+    /* ========================================================
        COLLATERAL DAMAGE
-       ===================================================== */
+       ======================================================== */
 
     for (
         const neighbor
@@ -1655,7 +2197,9 @@ function breakIce(block) {
 
 
         if (
-            isPillarBlock(neighbor)
+            isPillarBlock(
+                neighbor
+            )
         ) {
 
             continue;
@@ -1666,9 +2210,9 @@ function breakIce(block) {
         neighbor.damage++;
 
 
-        /* =================================================
+        /* ====================================================
            SECOND HIT → FALL
-           ================================================= */
+           ==================================================== */
 
         if (
             neighbor.damage >= 2
@@ -1689,7 +2233,8 @@ function breakIce(block) {
                     connection.b === neighbor
                 ) {
 
-                    connection.alive = false;
+                    connection.alive =
+                        false;
 
                 }
 
@@ -1700,16 +2245,16 @@ function breakIce(block) {
     }
 
 
-    /* =====================================================
-       RECALCULATE SUPPORT
-       ===================================================== */
+    /* ========================================================
+       STRUCTURAL SUPPORT
+       ======================================================== */
 
     updateStructuralSupport();
 
 
-    /* =====================================================
+    /* ========================================================
        UNSUPPORTED ICE FALLS
-       ===================================================== */
+       ======================================================== */
 
     for (
         const ice of blocks
@@ -1739,9 +2284,9 @@ function breakIce(block) {
 }
 
 
-/* =========================================================
+/* ============================================================
    SCORE
-   ========================================================= */
+   ============================================================ */
 
 function updateScore() {
 
@@ -1751,13 +2296,15 @@ function updateScore() {
 }
 
 
-/* =========================================================
+/* ============================================================
    GAME OVER
-   ========================================================= */
+   ============================================================ */
 
 function showGameOver() {
 
-    gameOver = true;
+    gameOver =
+        true;
+
 
     gameOverElement.style.display =
         "flex";
@@ -1768,6 +2315,7 @@ function showGameOver() {
         gameOverMessage.innerText =
             "PENGUIN SAVED!";
 
+
         gameOverMessage.className =
             "win";
 
@@ -1777,6 +2325,7 @@ function showGameOver() {
         gameOverMessage.innerText =
             "PENGUIN FELL!";
 
+
         gameOverMessage.className =
             "lose";
 
@@ -1785,17 +2334,23 @@ function showGameOver() {
 }
 
 
-/* =========================================================
+/* ============================================================
    RESET
-   ========================================================= */
+   ============================================================ */
 
 function resetGame() {
 
-    gameOver = false;
+    gameOver =
+        false;
 
-    won = false;
 
-    iceBroken = 0;
+    won =
+        false;
+
+
+    iceBroken =
+        0;
+
 
     updateScore();
 
@@ -1804,12 +2359,12 @@ function resetGame() {
         "none";
 
 
-    /* Remove old objects */
-
-    world.innerHTML = "";
+    world.innerHTML =
+        "";
 
 
     createLevel();
+
 
     updateStructuralSupport();
 
@@ -1848,9 +2403,9 @@ function resetGame() {
 }
 
 
-/* =========================================================
+/* ============================================================
    UPDATE
-   ========================================================= */
+   ============================================================ */
 
 function update(dt) {
 
@@ -1863,30 +2418,27 @@ function update(dt) {
     }
 
 
-    /* =====================================================
-       STRUCTURAL SUPPORT
-       ===================================================== */
-
     updateStructuralSupport();
 
 
-    /* =====================================================
+    /* ========================================================
        ICE
-       ===================================================== */
+       ======================================================== */
 
     for (
-        const block
-        of blocks
+        const block of blocks
     ) {
 
-        block.update(dt);
+        block.update(
+            dt
+        );
 
     }
 
 
-    /* =====================================================
+    /* ========================================================
        CONNECTIONS
-       ===================================================== */
+       ======================================================== */
 
     for (
         const connection
@@ -1898,22 +2450,26 @@ function update(dt) {
     }
 
 
-    /* =====================================================
+    /* ========================================================
        PENGUIN
-       ===================================================== */
+       ======================================================== */
 
-    penguin.update(dt);
+    penguin.update(
+        dt
+    );
 
 
-    /* =====================================================
-       PENGUIN FELL
-       ===================================================== */
+    /* ========================================================
+       LOSE
+       ======================================================== */
 
     if (
         !penguin.alive
     ) {
 
-        won = false;
+        won =
+            false;
+
 
         showGameOver();
 
@@ -1922,9 +2478,9 @@ function update(dt) {
     }
 
 
-    /* =====================================================
-       WIN CONDITION
-       ===================================================== */
+    /* ========================================================
+       WIN
+       ======================================================== */
 
     const aliveCount =
         blocks.filter(
@@ -1938,7 +2494,9 @@ function update(dt) {
         aliveCount <= 20
     ) {
 
-        won = true;
+        won =
+            true;
+
 
         showGameOver();
 
@@ -1947,15 +2505,17 @@ function update(dt) {
 }
 
 
-/* =========================================================
+/* ============================================================
    GAME LOOP
-   ========================================================= */
+   ============================================================ */
 
 function gameLoop(timestamp) {
 
     let dt =
-        (timestamp - lastTime) /
-        1000;
+        (
+            timestamp -
+            lastTime
+        ) / 1000;
 
 
     dt =
@@ -1979,9 +2539,9 @@ function gameLoop(timestamp) {
 }
 
 
-/* =========================================================
+/* ============================================================
    RESTART BUTTON
-   ========================================================= */
+   ============================================================ */
 
 restartButton.addEventListener(
     "click",
@@ -1995,9 +2555,9 @@ restartButton.addEventListener(
 );
 
 
-/* =========================================================
+/* ============================================================
    KEYBOARD
-   ========================================================= */
+   ============================================================ */
 
 document.addEventListener(
     "keydown",
@@ -2016,9 +2576,9 @@ document.addEventListener(
 );
 
 
-/* =========================================================
-   WATER ANIMATION
-   ========================================================= */
+/* ============================================================
+   WATER WAVES
+   ============================================================ */
 
 function createWaterWaves() {
 
@@ -2035,27 +2595,30 @@ function createWaterWaves() {
         ) {
 
             const wave =
-                document.createElement("div");
+                document.createElement(
+                    "div"
+                );
+
 
             wave.className =
                 "water-wave";
 
+
             wave.style.left =
                 `${x}px`;
+
 
             wave.style.top =
                 `${y}px`;
 
+
             wave.style.opacity =
                 String(
                     0.25 +
-                    Math.random() * 0.5
+                    Math.random() *
+                    0.5
                 );
 
-            wave.style.transform =
-                `translateX(${
-                    Math.random() * 20
-                }px)`;
 
             game.appendChild(
                 wave
@@ -2068,13 +2631,15 @@ function createWaterWaves() {
 }
 
 
-/* =========================================================
-   START GAME
-   ========================================================= */
+/* ============================================================
+   START
+   ============================================================ */
 
 createWaterWaves();
 
 resetGame();
+
+resizeGame();
 
 requestAnimationFrame(
     gameLoop
@@ -2083,12 +2648,17 @@ requestAnimationFrame(
 </script>
 
 </body>
+
 </html>
 """
 
 
+# ============================================================
+# DISPLAY GAME
+# ============================================================
+
 components.html(
     GAME_HTML,
-    height=780,
+    height=1000,
     scrolling=False,
 )
