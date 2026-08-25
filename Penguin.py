@@ -36,7 +36,7 @@ html, body {
     position: relative;
     width: 1000px;
     max-width: 100%;
-    aspect-ratio: 2000 / 1000;
+    aspect-ratio: 1200 / 1000;
     overflow: hidden;
     background: #2387d2;
     border-radius: 12px;
